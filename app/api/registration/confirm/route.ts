@@ -43,10 +43,17 @@ export async function POST(req: NextRequest) {
       mainRegistration.isSuiteRegistration &&
       mainRegistration.suitePartnerId
     ) {
-      await RegistrationModel.findByIdAndUpdate(
-        mainRegistration.suitePartnerId,
-        { $set: { 'payment.paymentConfirmed': targetStatus } },
-      );
+      const partnerUpdate: Record<string, unknown> = {
+        'payment.paymentConfirmed': targetStatus,
+      };
+      if (mainRegistration.payment?.referenceId) {
+        partnerUpdate['payment.referenceId'] = mainRegistration.payment.referenceId;
+        partnerUpdate['payment.paymentLink'] = mainRegistration.payment.paymentLink ?? '';
+        partnerUpdate['payment.amount'] = 0;
+      }
+      await RegistrationModel.findByIdAndUpdate(mainRegistration.suitePartnerId, {
+        $set: partnerUpdate,
+      });
     }
 
     return NextResponse.json({

@@ -41,7 +41,7 @@ export const PRICING = {
   /** centavos */
   alojamentoFull: 43_000,
   suitePerPerson: 49_000,
-  dailyPerDay: 13_000,
+  dailyPerDay: 15_000,
   shirt: 5_000,
   shirtMaxQuantity: 10,
   maxInstallments: 6,

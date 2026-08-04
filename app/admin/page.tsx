@@ -21,6 +21,7 @@ import { AdminBackToRegistration } from '@/components/admin/admin-back-to-regist
 
 interface Registration {
   _id: string;
+  registrationNumber?: number;
   name: string;
   age: number;
   gender: string;
@@ -38,11 +39,18 @@ interface Registration {
     paymentLink?: string;
   };
   accommodationType?: string;
+  isSuiteRegistration?: boolean;
+  suiteRole?: 'payer' | 'partner';
+  suitePayerRegistrationNumber?: number | null;
+  suitePartnerRegistrationNumber?: number | null;
+  suiteGroupNumber?: number | null;
+  suiteMembers?: string;
+  suiteDisplayTitle?: string;
   createdAt: string;
 }
 
 type PaymentFilter = 'all' | 'paid' | 'pending';
-type SortField = 'name' | 'age' | 'createdAt';
+type SortField = 'registrationNumber' | 'name' | 'age' | 'createdAt';
 type SortDir = 'asc' | 'desc';
 
 function StatCard({
@@ -85,8 +93,8 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<PaymentFilter>('all');
   const [search, setSearch] = useState('');
-  const [sortField, setSortField] = useState<SortField>('createdAt');
-  const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [sortField, setSortField] = useState<SortField>('registrationNumber');
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [exporting, setExporting] = useState(false);
   const [genderFilter, setGenderFilter] = useState<
     'all' | 'Masculino' | 'Feminino'
@@ -139,9 +147,20 @@ export default function AdminPage() {
     try {
       const res = await fetch('/api/registration/export');
       const data = await res.json();
+      if (!res.ok || !Array.isArray(data)) {
+        const message =
+          typeof data?.error === 'string'
+            ? data.error
+            : 'Falha ao carregar inscrições';
+        toast.error(message);
+        setRegistrations([]);
+        return;
+      }
       setRegistrations(data);
     } catch (err) {
       console.error('Failed to fetch registrations', err);
+      toast.error('Falha ao carregar inscrições');
+      setRegistrations([]);
     } finally {
       setLoading(false);
     }
@@ -169,10 +188,18 @@ export default function AdminPage() {
         r.responsibleInfo?.name?.toLowerCase().includes(q) ||
         r.churchName?.toLowerCase().includes(q) ||
         r.whatsapp?.replace(/\D/g, '').includes(q.replace(/\D/g, '')) ||
-        r.payment?.referenceId?.toLowerCase().includes(q)
+        r.payment?.referenceId?.toLowerCase().includes(q) ||
+        String(r.registrationNumber ?? '').includes(q)
       );
     })
     .sort((a, b) => {
+      if (sortField === 'registrationNumber') {
+        const numA = a.registrationNumber ?? Number.MAX_SAFE_INTEGER;
+        const numB = b.registrationNumber ?? Number.MAX_SAFE_INTEGER;
+        if (numA < numB) return sortDir === 'asc' ? -1 : 1;
+        if (numA > numB) return sortDir === 'asc' ? 1 : -1;
+        return 0;
+      }
       let valA: any = a[sortField as keyof Registration];
       let valB: any = b[sortField as keyof Registration];
       if (sortField === 'createdAt') {
@@ -323,7 +350,7 @@ export default function AdminPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
             <input
               type="text"
-              placeholder="Buscar por nome, igreja, ref..."
+              placeholder="Buscar por #, nome, igreja, ref..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full bg-background border border-border rounded-lg pl-9 pr-4 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary placeholder:text-muted-foreground/50"
@@ -377,8 +404,13 @@ export default function AdminPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/30">
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider w-8">
-                    #
+                  <th
+                    className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider cursor-pointer hover:text-foreground transition-colors w-16"
+                    onClick={() => handleSort('registrationNumber')}
+                  >
+                    <span className="flex items-center gap-1">
+                      # <SortIcon field="registrationNumber" />
+                    </span>
                   </th>
                   <th
                     className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider cursor-pointer hover:text-foreground transition-colors"
@@ -401,6 +433,12 @@ export default function AdminPage() {
                   </th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Acomodação
+                  </th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider min-w-[140px]">
+                    Suíte
+                  </th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Ref. pagamento
                   </th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Igreja
@@ -428,16 +466,29 @@ export default function AdminPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {filtered.map((reg, i) => (
+                {filtered.map((reg, i) => {
+                  const isSuitePartner = reg.suiteRole === 'partner';
+                  const isSuitePayer = reg.suiteRole === 'payer';
+                  const inSuite = Boolean(reg.suiteDisplayTitle);
+
+                  return (
                   <motion.tr
                     key={reg._id}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ duration: 0.2, delay: i * 0.02 }}
-                    className={`hover:bg-muted/30 transition-colors ${!reg.payment?.paymentConfirmed ? 'opacity-60' : ''}`}
+                    className={`hover:bg-muted/30 transition-colors ${
+                      !reg.payment?.paymentConfirmed ? 'opacity-60' : ''
+                    } ${
+                      isSuitePartner
+                        ? 'border-l-[3px] border-l-violet-600 bg-violet-100/70 dark:border-l-violet-400 dark:bg-violet-500/10'
+                        : isSuitePayer
+                          ? 'border-l-[3px] border-l-violet-500 bg-violet-50 dark:border-l-violet-500/55 dark:bg-violet-500/[0.06]'
+                          : ''
+                    }`}
                   >
-                    <td className="px-4 py-3 text-xs text-muted-foreground">
-                      {i + 1}
+                    <td className="px-4 py-3 text-xs font-mono font-semibold text-foreground tabular-nums">
+                      {reg.registrationNumber ?? '—'}
                     </td>
                     <td className="px-4 py-3 font-medium text-foreground whitespace-nowrap">
                       {reg.name}
@@ -456,12 +507,33 @@ export default function AdminPage() {
                       <span
                         className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                           reg.accommodationType === 'Suíte'
-                            ? 'bg-purple-500/10 text-purple-400'
-                            : 'bg-zinc-500/10 text-zinc-400'
+                            ? 'bg-violet-100 text-violet-900 ring-1 ring-violet-200 dark:bg-purple-500/15 dark:text-purple-300 dark:ring-0'
+                            : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-500/10 dark:text-zinc-400'
                         }`}
                       >
                         {reg.accommodationType || '—'}
                       </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs">
+                      {inSuite ? (
+                        <span
+                          className={`inline-flex max-w-[220px] flex-col gap-1 rounded-lg px-2.5 py-1.5 font-semibold leading-snug ring-1 ring-inset ${
+                            isSuitePartner
+                              ? 'bg-violet-200/60 text-violet-950 ring-violet-300/70 dark:bg-violet-500/20 dark:text-violet-100 dark:ring-violet-400/25'
+                              : 'bg-violet-100 text-violet-900 ring-violet-200 dark:bg-purple-500/15 dark:text-purple-200 dark:ring-purple-400/20'
+                          }`}
+                        >
+                          <span>{reg.suiteDisplayTitle}</span>
+                          <span className="text-[10px] font-normal text-violet-800 dark:text-violet-200/90">
+                            {reg.suiteMembers}
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-xs font-mono text-muted-foreground max-w-[120px] truncate" title={reg.payment?.referenceId}>
+                      {reg.payment?.referenceId || '—'}
                     </td>
                     <td className="px-4 py-3 text-muted-foreground text-xs">
                       {reg.churchName || '—'}
@@ -544,7 +616,8 @@ export default function AdminPage() {
                       </div>
                     </td>
                   </motion.tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

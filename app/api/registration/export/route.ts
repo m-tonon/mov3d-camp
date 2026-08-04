@@ -3,6 +3,7 @@ import { connectToDatabase } from '@/lib/mongoose-connection';
 import { RegistrationModel } from '@/shared/models/registration.model';
 import { Parser } from 'json2csv';
 import { formatShirtItemsSummary, totalShirtUnits } from '@/lib/shirt-lines';
+import { attachSuiteDisplayFields, type SuiteRowRef } from '@/lib/suite-registration-display';
 import {
   formatExportDateTime,
   formatPaymentAmountBrl,
@@ -58,11 +59,19 @@ function mapRegistrationRow(r: Record<string, unknown>) {
     paymentReferenceId: (r.payment as { referenceId?: string } | undefined)?.referenceId,
     paymentAmount: (r.payment as { amount?: number } | undefined)?.amount,
     paymentConfirmed: (r.payment as { paymentConfirmed?: boolean } | undefined)?.paymentConfirmed,
+    registrationNumber: r.registrationNumber as number | undefined,
+    suitePayerRegistrationNumber: r.suitePayerRegistrationNumber as number | undefined,
+    suitePartnerRegistrationNumber: r.suitePartnerRegistrationNumber as number | undefined,
+    suiteGroupNumber: r.suiteGroupNumber as number | undefined,
+    suiteRole: r.suiteRole as string | undefined,
+    isSuiteRegistration: r.isSuiteRegistration as boolean | undefined,
     responsibleInfo: r.responsibleInfo,
     payment: r.payment,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
-    _id: r._id,
+    _id: String(r._id),
+    suitePartnerId:
+      r.suitePartnerId != null ? String(r.suitePartnerId) : undefined,
   };
 }
 
@@ -103,10 +112,15 @@ export async function GET(req: NextRequest) {
     const query = paymentOnly ? { 'payment.paymentConfirmed': true } : {};
     const registrations = await RegistrationModel.find(query).lean();
 
-    const flat = registrations.map((r) => mapRegistrationRow(r as Record<string, unknown>));
+    const flat = attachSuiteDisplayFields(
+      registrations.map((r) =>
+        mapRegistrationRow(r as Record<string, unknown>),
+      ) as SuiteRowRef[],
+    );
 
     if (csvMode) {
       const fields = [
+        { label: 'Inscrição #', value: 'registrationNumber' },
         { label: 'Nome do Acampante', value: 'name' },
         { label: 'Data de Nascimento', value: 'birthDate' },
         { label: 'Idade', value: 'age' },
@@ -127,6 +141,8 @@ export async function GET(req: NextRequest) {
         { label: 'Qtd. camisetas', value: 'shirtTotalQuantity' },
         { label: 'Camisetas (detalhe)', value: 'shirtSummary' },
         { label: 'Dormitório', value: 'accommodationType' },
+        { label: 'Suíte #', value: 'suiteGroupNumber' },
+        { label: 'Integrantes da suíte', value: 'suiteMembers' },
         { label: 'Dias no acampamento', value: 'stayDays' },
         { label: 'Leva filhos', value: 'bringingChildren' },
         { label: 'Filhos (qtd/idades)', value: 'childrenDetails' },
@@ -144,7 +160,9 @@ export async function GET(req: NextRequest) {
         { label: 'Atualizado em', value: 'updatedAt' },
       ];
 
-      const csvRows = flat.map(mapRegistrationRowForCsv);
+      const csvRows = flat.map((row) =>
+        mapRegistrationRowForCsv(row as ReturnType<typeof mapRegistrationRow>),
+      );
       const csv = new Parser({ fields }).parse(csvRows);
       return new NextResponse(csv, {
         status: 200,

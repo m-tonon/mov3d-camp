@@ -493,7 +493,6 @@ export function useRegistrationForm({ onSubmit }: UseRegistrationFormProps) {
           };
 
       const referenceId = generateReferenceId();
-      const partnerReferenceId = isSuite ? generateReferenceId() : '';
 
       const checkoutRes = await fetch('/api/payment/checkout', {
         method: 'POST',
@@ -507,7 +506,6 @@ export function useRegistrationForm({ onSubmit }: UseRegistrationFormProps) {
           phone: payer.phone,
           maxInstallments: PAYMENT_MAX_INSTALLMENTS,
           isSuiteRegistration: isSuite,
-          suitePartnerReferenceId: partnerReferenceId,
         }),
       });
 
@@ -538,8 +536,8 @@ export function useRegistrationForm({ onSubmit }: UseRegistrationFormProps) {
               name: formattedPartnerName,
               stay: { ...formData.stay },
               payment: {
-                ...suitePartner.payment,
-                referenceId: partnerReferenceId,
+                ...paymentData,
+                referenceId,
                 amount: 0,
               },
             }

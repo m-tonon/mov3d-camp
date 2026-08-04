@@ -13,7 +13,14 @@ async function clearSuitePartnerFields(
   registrationId: Types.ObjectId,
 ): Promise<void> {
   await RegistrationModel.findByIdAndUpdate(registrationId, {
-    $unset: { suitePartnerId: '', suitePartnerName: '' },
+    $unset: {
+      suitePartnerId: '',
+      suitePartnerName: '',
+      suitePartnerRegistrationNumber: '',
+      suitePayerRegistrationNumber: '',
+      suiteRole: '',
+      suiteGroupNumber: '',
+    },
     $set: { isSuiteRegistration: false },
   });
 }
@@ -48,7 +55,13 @@ export async function dissolveSuitePartnerForIndividualMain(
     const partner = await RegistrationModel.findById(main.suitePartnerId);
     if (partner?.payment?.paymentConfirmed) {
       await RegistrationModel.findByIdAndUpdate(partner._id, {
-        $unset: { suitePartnerId: '' },
+        $unset: {
+          suitePartnerId: '',
+          suitePayerRegistrationNumber: '',
+          suitePartnerRegistrationNumber: '',
+          suiteRole: '',
+          suiteGroupNumber: '',
+        },
         $set: { isSuiteRegistration: false },
       });
     } else {
