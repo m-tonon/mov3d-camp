@@ -1,6 +1,14 @@
 'use client';
 
 import Image from 'next/image';
+import type { LucideIcon } from 'lucide-react';
+import {
+  BedDouble,
+  HeartHandshake,
+  ShieldCheck,
+  Shirt,
+  UserRound,
+} from 'lucide-react';
 import { RegistrationFormData } from '@/shared/registration.interface';
 import {
   useRegistrationForm,
@@ -69,17 +77,20 @@ export function RegistrationForm({ onSubmit }: Props) {
   );
 
   const SectionDivider = ({
-    icon,
+    icon: Icon,
     title,
     subtitle,
   }: {
-    icon: string;
+    icon: LucideIcon;
     title: string;
     subtitle?: string;
   }) => (
     <div className="flex items-center gap-3 pt-2">
-      <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center text-lg flex-shrink-0">
-        {icon}
+      <div
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"
+        aria-hidden
+      >
+        <Icon className="h-[18px] w-[18px]" strokeWidth={2} />
       </div>
       <div>
         <h2 className="text-sm font-semibold text-foreground">{title}</h2>
@@ -843,7 +854,7 @@ export function RegistrationForm({ onSubmit }: Props) {
         {currentStep === 'participant' && (
           <section className="p-6 space-y-4">
             <SectionDivider
-              icon="🧑"
+              icon={UserRound}
               title="Acampante"
               subtitle="Campos com * são obrigatórios"
             />
@@ -857,14 +868,14 @@ export function RegistrationForm({ onSubmit }: Props) {
 
         {currentStep === 'shirt' && (
           <section className="p-6 space-y-4">
-            <SectionDivider icon="👕" title="Camisetas" />
+            <SectionDivider icon={Shirt} title="Camisetas" />
             {renderShirtStep(formData, handleMainChange, 'main_')}
           </section>
         )}
 
         {currentStep === 'stay' && (
           <section className="p-6 space-y-4">
-            <SectionDivider icon="⛺" title="Estadia" />
+            <SectionDivider icon={BedDouble} title="Estadia" />
             {renderStayStep()}
           </section>
         )}
@@ -872,7 +883,7 @@ export function RegistrationForm({ onSubmit }: Props) {
         {currentStep === 'suitePartner' && isSuite && (
           <section className="p-6 space-y-4">
             <SectionDivider
-              icon="💑"
+              icon={HeartHandshake}
               title="Dados do cônjuge"
               subtitle="Segunda pessoa da suíte (casados)"
             />
@@ -887,7 +898,7 @@ export function RegistrationForm({ onSubmit }: Props) {
 
         {currentStep === 'responsible' && (
           <section className="p-6 space-y-4">
-            <SectionDivider icon="👥" title="Responsável legal" />
+            <SectionDivider icon={ShieldCheck} title="Responsável legal" />
             {renderResponsible()}
           </section>
         )}
