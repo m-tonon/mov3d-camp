@@ -10,6 +10,36 @@ import { PaymentSection } from "@/components/payment/payment-section";
 import { PaymentCompletedScreen } from "@/components/payment/payment-completed";
 import { RegistrationFormData } from "@/shared/registration.interface";
 import { isRegistrationOpen } from "@/lib/registration-config";
+import { ShieldCheck } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { AdminThemeToggle } from "@/components/admin/admin-theme-toggle";
+
+function AdminAccessLink() {
+  return (
+    <Button variant="outline" size="sm" className="gap-2 shadow-sm" asChild>
+      <Link href="/admin">
+        <ShieldCheck className="size-4" aria-hidden />
+        Área administrativa
+      </Link>
+    </Button>
+  );
+}
+
+function RegistrationTopBar({ className }: { className?: string }) {
+  return (
+    <header
+      className={
+        className ??
+        'border-b border-border bg-background/80 backdrop-blur-sm'
+      }
+    >
+      <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
+        <AdminThemeToggle />
+        <AdminAccessLink />
+      </div>
+    </header>
+  );
+}
 
 type Step = "form" | "payment";
 
@@ -43,11 +73,17 @@ function RegistrationPageContent() {
   };
 
   if (paymentCompleted) {
-    return <PaymentCompletedScreen />;
+    return (
+      <main className="min-h-screen bg-background flex flex-col">
+        <RegistrationTopBar />
+        <PaymentCompletedScreen />
+      </main>
+    );
   }
 
   return (
     <main className="relative min-h-screen bg-background overflow-hidden">
+      <RegistrationTopBar className="relative z-10 border-b border-border bg-background/80 backdrop-blur-sm" />
       <motion.div
         className="pointer-events-none absolute top-10 left-[-80px] w-[260px] h-[260px] bg-primary/15 blur-3xl rounded-full"
         animate={{ scale: [1, 1.2, 1] }}
@@ -147,14 +183,6 @@ function RegistrationPageContent() {
           </>
         )}
 
-        <div className="mt-8 text-center">
-          <Link
-            href="/admin"
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Área administrativa
-          </Link>
-        </div>
       </div>
     </main>
   );

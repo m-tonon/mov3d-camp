@@ -2,11 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import {
-  defaultPathForRole,
-  getAdminRole,
-  isPathAllowedForRole,
-} from "@/lib/admin-session";
+import { isAdminAuthenticated } from "@/lib/admin-session";
 
 function isAdminLoginPath(pathname: string) {
   return pathname === "/admin/login";
@@ -23,20 +19,11 @@ export function AdminAuthShell({ children }: { children: React.ReactNode }) {
   const [authorized, setAuthorized] = useState(false);
 
   useEffect(() => {
-    const role = getAdminRole();
+    const authenticated = isAdminAuthenticated();
 
-    if (!role && isProtectedAdminPath(pathname)) {
+    if (!authenticated && isProtectedAdminPath(pathname)) {
       const from = encodeURIComponent(pathname);
       router.replace(`/admin/login?from=${from}`);
-      return;
-    }
-
-    if (
-      role &&
-      isProtectedAdminPath(pathname) &&
-      !isPathAllowedForRole(pathname, role)
-    ) {
-      router.replace(defaultPathForRole(role));
       return;
     }
 

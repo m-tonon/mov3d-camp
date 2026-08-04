@@ -7,8 +7,8 @@ import { AdminLogoMark } from '@/components/admin/admin-logo-mark';
 import {
   resolveRedirectPath,
   setAdminSession,
-  type AdminRole,
 } from '@/lib/admin-session';
+import { AdminBackToRegistration } from '@/components/admin/admin-back-to-registration';
 
 export default function AdminLogin() {
   const [password, setPassword] = useState('');
@@ -26,17 +26,11 @@ export default function AdminLogin() {
       body: JSON.stringify({ password }),
     });
 
-    const data = (await res.json()) as {
-      success?: boolean;
-      role?: AdminRole;
-    };
+    const data = (await res.json()) as { success?: boolean };
 
-    if (data.success && data.role) {
-      setAdminSession(data.role);
-      const redirectTo = resolveRedirectPath(
-        searchParams.get('from'),
-        data.role,
-      );
+    if (data.success) {
+      setAdminSession();
+      const redirectTo = resolveRedirectPath(searchParams.get('from'));
       router.push(redirectTo);
     } else {
       setError(true);
@@ -45,11 +39,12 @@ export default function AdminLogin() {
   };
 
   return (
-    <main className="min-h-screen bg-background flex items-center justify-center px-4">
+    <main className="min-h-screen bg-background flex flex-col items-center justify-center px-4 py-10">
       <div className="w-full max-w-sm space-y-6">
+        <AdminBackToRegistration />
         <div className="text-center space-y-2">
           <AdminLogoMark size="lg" className="mx-auto" />
-          <h1 className="text-xl font-black tracking-tight">Mov3D Admin</h1>
+          <h1 className="text-xl font-black tracking-tight">IPVO Acampa Jovens</h1>
           <p className="text-xs text-muted-foreground">
             Digite a senha para continuar
           </p>

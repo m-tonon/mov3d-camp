@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     const payment = await req.json();
     console.log('Incoming payment:', payment);
 
-    if (!isRegistrationOpen() && payment.isStaffType !== true) {
+    if (!isRegistrationOpen()) {
       return NextResponse.json(
         { error: 'Inscrições encerradas.' },
         { status: 403 },
@@ -37,29 +37,19 @@ export async function POST(req: NextRequest) {
       .replace('Z', '-03:00');
 
     const amount = payment.amount ?? 28000;
-    const isStaffType = payment.isStaffType === true;
     const maxInstallments = String(payment.maxInstallments ?? 10);
     const publicInstallmentsLimit = areInstallmentsAvailable()
       ? maxInstallments
       : '1';
 
-    const paymentMethodsConfigs = isStaffType
-      ? [
-          {
-            type: 'CREDIT_CARD',
-            config_options: [
-              { option: 'INSTALLMENTS_LIMIT', value: maxInstallments },
-            ],
-          },
-        ]
-      : [
-          {
-            type: 'credit_card',
-            config_options: [
-              { option: 'installments_limit', value: publicInstallmentsLimit },
-            ],
-          },
-        ];
+    const paymentMethodsConfigs = [
+      {
+        type: 'credit_card',
+        config_options: [
+          { option: 'installments_limit', value: publicInstallmentsLimit },
+        ],
+      },
+    ];
 
     const payload = {
       reference_id: payment.referenceId,
@@ -77,9 +67,7 @@ export async function POST(req: NextRequest) {
       customer_modifiable: true,
       items: [
         {
-          name: isStaffType
-            ? 'Acampa Deep Fake - Staff'
-            : 'Acampa Deep Fake',
+          name: 'IPVO Acampa Jovens',
           quantity: 1,
           unit_amount: amount,
         },
@@ -117,14 +105,19 @@ export async function POST(req: NextRequest) {
       referenceId: pagbankData.reference_id,
       checkoutId: pagbankData.id,
     });
-  } catch (error: any) {
-    console.error(
-      'Error in /api/payments/checkout:',
-      error.response?.data || error.message,
-    );
-    return NextResponse.json(
-      { error: error.message || 'Payment error' },
-      { status: 500 },
-    );
+  } catch (error: unknown) {
+    const message =
+      error instanceof Error ? error.message : 'Payment error';
+    const axiosData =
+      error &&
+      typeof error === 'object' &&
+      'response' in error &&
+      error.response &&
+      typeof error.response === 'object' &&
+      'data' in error.response
+        ? error.response.data
+        : undefined;
+    console.error('Error in /api/payments/checkout:', axiosData || message);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

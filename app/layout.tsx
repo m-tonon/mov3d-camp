@@ -8,8 +8,8 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
 export const metadata: Metadata = {
-  title: 'Mov3D — Inscrições',
-  description: 'Inscrição no acampamento Mov3D.',
+  title: 'IPVO Acampa Jovens — Inscrições',
+  description: 'Inscrição no IPVO Acampa Jovens.',
   icons: {
     icon: [
       {

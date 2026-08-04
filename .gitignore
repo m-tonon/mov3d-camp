@@ -15,7 +15,6 @@ next-env.d.ts
 # Common ignores
 node_modules/
 .next/
-public/sw.js
 .DS_Store
 .vercel
 .agent/

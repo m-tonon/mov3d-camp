@@ -1,4 +1,7 @@
-import withSerwistInit from '@serwist/next';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const projectDir = path.dirname(fileURLToPath(import.meta.url));
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -8,15 +11,15 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  // Serwist injects webpack config; allow `next dev` (Turbopack) while SW is off in dev.
-  turbopack: {},
+  // Sibling projects under IPVO/ confuse Turbopack's workspace root; lock resolution here.
+  turbopack: {
+    root: projectDir,
+    resolveAlias: {
+      tailwindcss: path.join(projectDir, 'node_modules/tailwindcss'),
+      'tw-animate-css': path.join(projectDir, 'node_modules/tw-animate-css'),
+    },
+  },
+  outputFileTracingRoot: projectDir,
 };
 
-const withSerwist = withSerwistInit({
-  swSrc: 'app/sw.ts',
-  swDest: 'public/sw.js',
-  disable: process.env.NODE_ENV === 'development',
-  register: false,
-});
-
-export default withSerwist(nextConfig);
+export default nextConfig;

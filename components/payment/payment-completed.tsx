@@ -5,7 +5,7 @@ const CONTACTS = [
 
 export function PaymentCompletedScreen() {
   return (
-    <main className="min-h-screen bg-background text-foreground flex items-center justify-center px-4">
+    <div className="flex flex-1 items-center justify-center px-4 py-10">
       <div className="max-w-sm w-full text-center space-y-5">
         <span className="text-6xl block">✅</span>
 
@@ -34,6 +34,6 @@ export function PaymentCompletedScreen() {
           <p className="text-xs text-muted-foreground pt-2">Ou entre em contato com a secretaria da sua igreja.</p>
         </div>
       </div>
-    </main>
+    </div>
   );
 }

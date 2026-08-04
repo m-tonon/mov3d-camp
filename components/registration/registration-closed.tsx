@@ -23,7 +23,7 @@ export function RegistrationClosed({
           <p className="text-sm sm:text-base font-medium text-foreground">
             <span className="text-primary font-semibold">Inscrições encerradas</span>
             {' — '}
-            as vagas para o Acampa Deep Fake já foram preenchidas.
+            as vagas para o IPVO Acampa Jovens já foram preenchidas.
           </p>
         </div>
       </div>
@@ -61,7 +61,7 @@ export function RegistrationClosed({
           </h3>
           <p className="text-base text-muted-foreground leading-relaxed max-w-md mx-auto">
             Ficamos muito felizes com a procura — as vagas para o{' '}
-            <span className="font-medium text-foreground">Acampa Deep Fake</span>{' '}
+            <span className="font-medium text-foreground">IPVO Acampa Jovens</span>{' '}
             já foram preenchidas e as inscrições estão encerradas.
           </p>
         </div>

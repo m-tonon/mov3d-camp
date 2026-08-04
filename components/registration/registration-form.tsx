@@ -419,7 +419,7 @@ export function RegistrationForm({ onSubmit }: Props) {
       <div className="text-center mb-8 space-y-1">
         <div className="inline-flex items-center gap-2 bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-medium mb-3">
           <span>⛺</span>
-          <span>Acampa Deep Fake</span>
+          <span>IPVO Acampa Jovens</span>
         </div>
         <h1 className="text-2xl font-black tracking-tight">
           Formulário de Inscrição
@@ -555,7 +555,7 @@ export function RegistrationForm({ onSubmit }: Props) {
                   <span className="text-sm leading-relaxed text-foreground/80">
                     Autorizo o menor acima a participar do evento{' '}
                     <strong className="text-foreground">
-                      ACAMPA DEEP FAKE
+                      IPVO ACAMPA JOVENS
                     </strong>{' '}
                     no Maanaim — Estr. Arns, 1516, Mandaguaçu - PR, no período
                     de{' '}

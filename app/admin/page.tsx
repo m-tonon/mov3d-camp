@@ -16,6 +16,8 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
+import { AdminThemeToggle } from '@/components/admin/admin-theme-toggle';
+import { AdminBackToRegistration } from '@/components/admin/admin-back-to-registration';
 
 interface Registration {
   _id: string;
@@ -220,17 +222,47 @@ export default function AdminPage() {
 
   return (
     <div className="p-6 space-y-6">
+      {/* Mobile actions */}
+      <div className="flex sm:hidden items-center justify-between gap-3 pb-4 border-b border-border">
+        <AdminThemeToggle showLabel />
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={fetchRegistrations}
+            className="flex items-center justify-center size-9 rounded-lg border border-border hover:bg-muted/50 transition-colors text-muted-foreground hover:text-foreground"
+            aria-label="Atualizar"
+          >
+            <RefreshCw
+              className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`}
+            />
+          </button>
+          <button
+            type="button"
+            onClick={() => handleExport(false)}
+            disabled={exporting}
+            className="flex items-center justify-center size-9 rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-50"
+            aria-label="Exportar CSV"
+          >
+            <Download className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
       {/* Page header */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex items-center justify-between gap-4">
+        <div className="space-y-2 min-w-0">
+          <AdminBackToRegistration />
+          <div>
           <h1 className="text-xl font-black tracking-tight text-foreground">
             Inscrições
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Mov3D · 05–07 Junho 2026
+            IPVO Acampa Jovens · 05–07 Junho 2026
           </p>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="hidden sm:flex items-center gap-2 shrink-0">
+          <AdminThemeToggle />
           <button
             onClick={fetchRegistrations}
             className="flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-lg border border-border hover:bg-muted/50 transition-colors text-muted-foreground hover:text-foreground"

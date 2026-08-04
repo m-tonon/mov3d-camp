@@ -31,7 +31,7 @@ export function AdminLogoMark({ size = 'md', className }: Props) {
       aria-hidden
     >
       <Image
-        src="/pwa-icon-192.png"
+        src="/icon-dark.png"
         alt=""
         width={PX[size]}
         height={PX[size]}
