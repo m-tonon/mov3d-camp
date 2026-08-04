@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
-import dotenv from 'dotenv';
 import { isRegistrationOpen, areInstallmentsAvailable } from '@/lib/registration-config';
-
-dotenv.config();
+import { ORIGENS, PRICING } from '@/lib/event-config';
 
 const PAGBANK_TOKEN = process.env.PAGBANK_TOKEN!;
 const PAGBANK_API_URL = process.env.PAGBANK_API_URL!;
@@ -37,7 +35,9 @@ export async function POST(req: NextRequest) {
       .replace('Z', '-03:00');
 
     const amount = payment.amount ?? 28000;
-    const maxInstallments = String(payment.maxInstallments ?? 10);
+    const maxInstallments = String(
+      payment.maxInstallments ?? PRICING.maxInstallments,
+    );
     const publicInstallmentsLimit = areInstallmentsAvailable()
       ? maxInstallments
       : '1';
@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
       customer_modifiable: true,
       items: [
         {
-          name: 'IPVO Acampa Jovens',
+          name: `Inscrição ${ORIGENS.title}`,
           quantity: 1,
           unit_amount: amount,
         },

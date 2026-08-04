@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import dotenv from 'dotenv';
 import { connectToDatabase } from '@/lib/mongoose-connection';
 import { RegistrationModel } from '@/shared/models/registration.model';
-
-dotenv.config();
 
 const ADMIN_PASS = process.env.ADMIN_PASS!;
 

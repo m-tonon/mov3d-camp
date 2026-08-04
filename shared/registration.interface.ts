@@ -18,21 +18,55 @@ export interface ResponsibleInfo {
   relation: string;
 }
 
+export type AccommodationType = 'Alojamento' | 'Suíte';
+export type StayDays = 'full' | '1' | '2' | '3';
+export type ShirtModel = 'Modelo 1' | 'Modelo 2' | '';
+export type ShirtSize = 'P' | 'M' | 'G' | 'GG' | '';
+
+export interface ShirtLineItem {
+  model: ShirtModel;
+  size: ShirtSize;
+  quantity: number;
+}
+
+export interface ShirtSelection {
+  wantsShirt: boolean;
+  items: ShirtLineItem[];
+}
+
+export interface StayInfo {
+  accommodationType: AccommodationType | '';
+  stayDays: StayDays | '';
+  bringingChildren: boolean;
+  childrenDetails: string;
+  needsCrib: boolean;
+}
+
 export interface RegistrationFormData {
   name: string;
   birthDate: string;
   age: number | null;
   gender: string;
-  identityDocument: string;
-  address: string;
+  cpf: string;
+  whatsapp: string;
+  email: string;
+
   churchMembership: string;
   churchName: string;
-  healthInsurance: string;
-  medications: string;
+
+  attendedPreviousIpvoCamps: string;
+
+  hasHealthPlan: string;
+  healthPlanName: string;
+
   allergies: string;
-  specialNeeds: string;
+
+  shirt: ShirtSelection;
+  stay: StayInfo;
+
   responsibleInfo: ResponsibleInfo;
   parentalAuthorization: boolean;
+
   payment: PaymentInfo;
   isSuiteRegistration?: boolean;
   suitePartner?: RegistrationFormData;

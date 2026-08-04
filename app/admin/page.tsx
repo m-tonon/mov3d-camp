@@ -24,6 +24,7 @@ interface Registration {
   name: string;
   age: number;
   gender: string;
+  whatsapp?: string;
   churchName: string;
   responsibleInfo: {
     name: string;
@@ -36,8 +37,8 @@ interface Registration {
     amount: number;
     paymentLink?: string;
   };
+  accommodationType?: string;
   createdAt: string;
-  registrationType?: string;
 }
 
 type PaymentFilter = 'all' | 'paid' | 'pending';
@@ -167,6 +168,7 @@ export default function AdminPage() {
         r.name?.toLowerCase().includes(q) ||
         r.responsibleInfo?.name?.toLowerCase().includes(q) ||
         r.churchName?.toLowerCase().includes(q) ||
+        r.whatsapp?.replace(/\D/g, '').includes(q.replace(/\D/g, '')) ||
         r.payment?.referenceId?.toLowerCase().includes(q)
       );
     })
@@ -407,7 +409,7 @@ export default function AdminPage() {
                     Responsável
                   </th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    Telefone
+                    WhatsApp
                   </th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Pagamento
@@ -453,12 +455,12 @@ export default function AdminPage() {
                     <td className="px-4 py-3">
                       <span
                         className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                          reg.registrationType === 'Suíte'
+                          reg.accommodationType === 'Suíte'
                             ? 'bg-purple-500/10 text-purple-400'
                             : 'bg-zinc-500/10 text-zinc-400'
                         }`}
                       >
-                        {reg.registrationType ?? 'Individual'}
+                        {reg.accommodationType || '—'}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground text-xs">
@@ -467,8 +469,15 @@ export default function AdminPage() {
                     <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap">
                       {reg.responsibleInfo?.name || '—'}
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground text-xs font-mono">
-                      {formatPhone(reg.responsibleInfo?.phone)}
+                    <td className="px-4 py-3 text-muted-foreground text-xs">
+                      <div className="font-mono whitespace-nowrap">
+                        {formatPhone(reg.whatsapp ?? '')}
+                      </div>
+                      {reg.responsibleInfo?.phone && (
+                        <div className="text-[10px] text-muted-foreground/80 mt-0.5 whitespace-nowrap">
+                          Resp.: {formatPhone(reg.responsibleInfo.phone)}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <span

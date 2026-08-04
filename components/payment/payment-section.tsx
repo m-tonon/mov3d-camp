@@ -10,16 +10,7 @@ interface Props {
   onBack: () => void;
 }
 
-const CAMP_INFO = {
-  paymentOptions: {
-    methods: ['PIX', 'Cartão de Crédito', 'Cartão de Débito'],
-    maxInstallments: 10,
-  },
-  contacts: [
-    { name: 'Secretaria IPVO', phone: '(44) 3226-4473' },
-    { name: 'Ana Carla', phone: '(44) 9 9115-8078' },
-  ],
-};
+import { ORIGENS, PRICING } from '@/lib/event-config';
 
 export function PaymentSection({ data, onBack }: Props) {
   const installmentsAvailable = areInstallmentsAvailable();
@@ -27,7 +18,7 @@ export function PaymentSection({ data, onBack }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const amount = data.payment?.amount ?? 28000;
+  const amount = data.payment?.amount ?? PRICING.alojamentoFull;
   const formatted = (amount / 100).toLocaleString('pt-BR', {
     style: 'currency',
     currency: 'BRL',
@@ -75,7 +66,7 @@ export function PaymentSection({ data, onBack }: Props) {
               💳
             </span>
             <span className="text-foreground/80">
-              {CAMP_INFO.paymentOptions.methods.join(' · ')}
+              {['PIX', 'Cartão de Crédito', 'Cartão de Débito'].join(' · ')}
             </span>
           </div>
           <div className="flex items-start gap-2 text-sm">
@@ -92,8 +83,7 @@ export function PaymentSection({ data, onBack }: Props) {
             <span
               className={`${!installmentsAvailable ? 'line-through' : 'text-foreground/80'} `}
             >
-              Parcelamento em até {CAMP_INFO.paymentOptions.maxInstallments}x no
-              cartão
+              Parcelamento em até {PRICING.maxInstallments}x no cartão
             </span>
             {!installmentsAvailable && (
               <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded-md no-underline not-line-through ml-1 self-start">
@@ -111,9 +101,21 @@ export function PaymentSection({ data, onBack }: Props) {
         </p>
         <div className="space-y-2 text-sm">
           <SummaryRow label="Participante" value={data.name} />
-          {data.age && <SummaryRow label="Idade" value={`${data.age} anos`} />}
-          <SummaryRow label="Responsável" value={data.responsibleInfo.name} />
-          <SummaryRow label="E-mail" value={data.responsibleInfo.email} mono />
+          {data.age != null && (
+            <SummaryRow label="Idade" value={`${data.age} anos`} />
+          )}
+          {data.stay?.accommodationType && (
+            <SummaryRow
+              label="Estadia"
+              value={`${data.stay.accommodationType} · ${data.stay.stayDays === 'full' ? 'Período completo' : `${data.stay.stayDays} dia(s)`}`}
+            />
+          )}
+          {data.payment?.name && (
+            <SummaryRow label="Pagador" value={data.payment.name} />
+          )}
+          {data.payment?.email && (
+            <SummaryRow label="E-mail" value={data.payment.email} mono />
+          )}
           {data.payment?.referenceId && (
             <SummaryRow
               label="Referência"
@@ -210,11 +212,9 @@ export function PaymentSection({ data, onBack }: Props) {
       {/* Contacts */}
       <div className="bg-card border border-border rounded-xl px-4 py-3 text-xs text-muted-foreground space-y-1">
         <p className="font-medium text-foreground mb-1.5">Dúvidas?</p>
-        {CAMP_INFO.contacts.map((c) => (
-          <p key={c.name}>
-            📞 {c.name} · {c.phone}
-          </p>
-        ))}
+        <p>
+          📞 {ORIGENS.contact.name} · {ORIGENS.contact.phone}
+        </p>
       </div>
     </div>
   );

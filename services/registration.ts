@@ -12,7 +12,10 @@ export async function saveRegistration(
   });
 
   if (!res.ok) {
-    throw new Error("Erro ao salvar inscrição.");
+    const body = (await res.json().catch(() => null)) as {
+      error?: string;
+    } | null;
+    throw new Error(body?.error ?? 'Erro ao salvar inscrição.');
   }
 
   return res.json();

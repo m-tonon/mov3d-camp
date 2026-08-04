@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import dotenv from 'dotenv';
 import { RegistrationFormData } from '@/shared/registration.interface';
 import { connectToDatabase } from '@/lib/mongoose-connection';
 import { RegistrationModel } from '@/shared/models/registration.model';
 import { isRegistrationOpen } from '@/lib/registration-config';
+import { normalizeCpf } from '@/lib/cpf';
+import { upsertRegistrationByCpf } from '@/lib/registration-persist';
+import { validateShirtForSave } from '@/lib/shirt-lines';
+import {
+  dissolveSuitePartnerForIndividualMain,
+  reconcileStaleSuitePartnerRef,
+  removeReplacedSuitePartner,
+} from '@/lib/suite-partner-cleanup';
 
-dotenv.config();
+const PAID_CPF_MESSAGE =
+  'Já existe uma inscrição com pagamento confirmado para este CPF. Se precisar de ajuda, fale com a organização.';
 
 export async function POST(req: NextRequest) {
   if (!isRegistrationOpen()) {
@@ -15,26 +23,17 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  console.log('Registration API called');
-
   await connectToDatabase();
-  console.log('Database connected');
 
   try {
     const formData: RegistrationFormData = await req.json();
-    console.log('Received registration data:', {
-      name: formData.name,
-      identityDocument: formData.identityDocument,
-      hasPayment: !!formData.payment,
-      paymentReferenceId: formData.payment?.referenceId,
-      isSuite: formData.isSuiteRegistration,
-    });
 
     if (
       !formData.name ||
-      !formData.responsibleInfo.name ||
-      !formData.responsibleInfo.document ||
-      !formData.responsibleInfo.phone
+      !formData.cpf ||
+      !formData.whatsapp ||
+      !formData.email ||
+      !formData.stay?.accommodationType
     ) {
       return NextResponse.json(
         { error: 'Missing required fields' },
@@ -42,42 +41,101 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    let mainRegistration = await RegistrationModel.findOneAndUpdate(
-      { 'payment.referenceId': formData.payment?.referenceId },
-      { $set: formData },
-      { returnDocument: 'after', upsert: true },
-    );
+    const needsResponsible =
+      (formData.age !== null &&
+        formData.age >= 16 &&
+        formData.age < 18) ||
+      (formData.isSuiteRegistration &&
+        formData.suitePartner?.age !== null &&
+        formData.suitePartner.age >= 16 &&
+        formData.suitePartner.age < 18);
 
-    if (formData.isSuiteRegistration && formData.suitePartner) {
-      const partnerData = {
+    if (
+      needsResponsible &&
+      (!formData.responsibleInfo?.name ||
+        !formData.responsibleInfo?.document ||
+        !formData.responsibleInfo?.phone ||
+        !formData.responsibleInfo?.email)
+    ) {
+      return NextResponse.json(
+        { error: 'Missing responsible fields' },
+        { status: 400 },
+      );
+    }
+
+    if (!validateShirtForSave(formData.shirt)) {
+      return NextResponse.json(
+        { error: 'Informe modelo, tamanho e quantidade da camiseta.' },
+        { status: 400 },
+      );
+    }
+
+    const mainResult = await upsertRegistrationByCpf(formData);
+    if (!mainResult.ok) {
+      return NextResponse.json({ error: PAID_CPF_MESSAGE }, { status: 409 });
+    }
+    const mainRegistration = mainResult.doc;
+
+    if (!formData.isSuiteRegistration) {
+      await dissolveSuitePartnerForIndividualMain(mainRegistration._id);
+    } else if (formData.suitePartner) {
+      const previousPartnerId = (
+        await RegistrationModel.findById(mainRegistration._id).select(
+          'suitePartnerId',
+        )
+      )?.suitePartnerId;
+
+      const mainCpf = normalizeCpf(formData.cpf);
+      const partnerCpf = normalizeCpf(formData.suitePartner.cpf);
+      if (mainCpf.length === 11 && mainCpf === partnerCpf) {
+        return NextResponse.json(
+          { error: 'O CPF do cônjuge deve ser diferente do acampante.' },
+          { status: 400 },
+        );
+      }
+
+      const partnerPayload: RegistrationFormData = {
         ...formData.suitePartner,
+        stay: formData.stay,
         payment: {
           ...formData.suitePartner.payment,
           referenceId:
             formData.suitePartner.payment?.referenceId ||
-            formData.payment.referenceId + '-P2',
+            `${formData.payment.referenceId}-P2`,
         },
         isSuiteRegistration: true,
-        suitePartnerId: mainRegistration._id,
       };
 
-      let partnerRegistration = await RegistrationModel.findOneAndUpdate(
-        { 'payment.referenceId': partnerData.payment.referenceId },
-        { $set: partnerData },
-        { returnDocument: 'after', upsert: true },
-      );
+      const partnerResult = await upsertRegistrationByCpf(partnerPayload);
+      if (!partnerResult.ok) {
+        return NextResponse.json({ error: PAID_CPF_MESSAGE }, { status: 409 });
+      }
+      const partnerRegistration = partnerResult.doc;
 
       await RegistrationModel.findByIdAndUpdate(mainRegistration._id, {
         suitePartnerId: partnerRegistration._id,
-        suitePartnerName: partnerData.name,
+        suitePartnerName: partnerRegistration.name,
+        isSuiteRegistration: true,
       });
 
-      console.log('Suite partner registration saved');
+      await RegistrationModel.findByIdAndUpdate(partnerRegistration._id, {
+        suitePartnerId: mainRegistration._id,
+        isSuiteRegistration: true,
+      });
+
+      await removeReplacedSuitePartner(
+        previousPartnerId,
+        partnerRegistration._id,
+      );
     }
+
+    await reconcileStaleSuitePartnerRef(mainRegistration._id);
+
+    const refreshed = await RegistrationModel.findById(mainRegistration._id);
 
     return NextResponse.json({
       message: 'Registration saved successfully',
-      referenceId: mainRegistration.payment.referenceId,
+      referenceId: refreshed?.payment?.referenceId ?? formData.payment.referenceId,
     });
   } catch (error) {
     console.error('Error in /api/registration:', error);

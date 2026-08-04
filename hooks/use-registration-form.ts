@@ -1,81 +1,84 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   PaymentInfo,
   RegistrationFormData,
+  ShirtSelection,
+  StayInfo,
 } from '@/shared/registration.interface';
 import { saveRegistration } from '@/services/registration';
+import { ORIGENS, PRICING } from '@/lib/event-config';
+import { getRegistrationPriceBreakdown } from '@/lib/pricing';
+import {
+  createEmptyShirtLine,
+  createEmptyShirtSelection,
+  shirtLineUnits,
+  totalShirtUnits,
+} from '@/lib/shirt-lines';
+import type { AccommodationType, StayDays } from '@/shared/registration.interface';
+import {
+  calculateAgeFromBirthDate,
+  isBirthDateInFuture,
+  isCompleteBirthDate,
+  maskBirthDateInput,
+} from '@/lib/birth-date';
 
-export type FormStep = 'participant' | 'suitePartner' | 'responsible';
+export type FormStep =
+  | 'orientations'
+  | 'participant'
+  | 'shirt'
+  | 'stay'
+  | 'suitePartner'
+  | 'responsible';
 
 export const STEP_LABELS: Record<FormStep, string> = {
-  participant: 'Dados do Acampante',
-  suitePartner: 'Dados do Acompanhante',
-  responsible: 'Informações do Responsável',
+  orientations: 'Orientações',
+  participant: 'Acampante',
+  shirt: 'Camiseta',
+  stay: 'Estadia',
+  suitePartner: 'Cônjuge',
+  responsible: 'Responsável',
 };
 
-export const SUITE_PRICE = 88000;
-export const INDIVIDUAL_PRICE = 28000;
-export const STAFF_PRICE = 20000;
-export const PAYMENT_MAX_INSTALLMENTS = 10;
+export const PAYMENT_MAX_INSTALLMENTS = PRICING.maxInstallments;
 
-interface UseRegistrationFormProps {
-  onSubmit: (data: RegistrationFormData) => void;
-}
+const emptyShirt = (): ShirtSelection => createEmptyShirtSelection();
 
-export function useRegistrationForm({ onSubmit }: UseRegistrationFormProps) {
-  const [currentStep, setCurrentStep] = useState<FormStep>('participant');
-  const [isSuite, setIsSuite] = useState(false);
+const emptyStay = (): StayInfo => ({
+  accommodationType: '',
+  stayDays: '',
+  bringingChildren: false,
+  childrenDetails: '',
+  needsCrib: false,
+});
 
-  const [formData, setFormData] = useState<RegistrationFormData>({
+const emptyResponsible = () => ({
+  name: '',
+  document: '',
+  phone: '',
+  email: '',
+  relation: '',
+});
+
+function createEmptyParticipant(
+  isSuiteRegistration = false,
+): RegistrationFormData {
+  return {
     name: '',
     birthDate: '',
     age: null,
     gender: '',
-    identityDocument: '',
-    address: '',
+    cpf: '',
+    whatsapp: '',
+    email: '',
     churchMembership: '',
     churchName: '',
-    healthInsurance: '',
-    medications: '',
+    attendedPreviousIpvoCamps: '',
+    hasHealthPlan: '',
+    healthPlanName: '',
     allergies: '',
-    specialNeeds: '',
-    responsibleInfo: {
-      name: '',
-      document: '',
-      phone: '',
-      email: '',
-      relation: '',
-    },
-    parentalAuthorization: false,
-    payment: {
-      referenceId: '',
-      paymentConfirmed: false,
-      amount: INDIVIDUAL_PRICE,
-      paymentLink: '',
-    },
-    isSuiteRegistration: false,
-  });
-
-  const [suitePartner, setSuitePartner] = useState<RegistrationFormData>({
-    name: '',
-    birthDate: '',
-    age: null,
-    gender: '',
-    identityDocument: '',
-    address: '',
-    churchMembership: '',
-    churchName: '',
-    healthInsurance: '',
-    medications: '',
-    allergies: '',
-    specialNeeds: '',
-    responsibleInfo: {
-      name: '',
-      document: '',
-      phone: '',
-      email: '',
-      relation: '',
-    },
+    shirt: emptyShirt(),
+    stay: emptyStay(),
+    responsibleInfo: emptyResponsible(),
     parentalAuthorization: false,
     payment: {
       referenceId: '',
@@ -83,34 +86,87 @@ export function useRegistrationForm({ onSubmit }: UseRegistrationFormProps) {
       amount: 0,
       paymentLink: '',
     },
-    isSuiteRegistration: true,
-  });
+    isSuiteRegistration,
+  };
+}
+
+interface UseRegistrationFormProps {
+  onSubmit: (data: RegistrationFormData) => void;
+}
+
+export function useRegistrationForm({ onSubmit }: UseRegistrationFormProps) {
+  const [currentStep, setCurrentStep] = useState<FormStep>('orientations');
+  const [formData, setFormData] = useState<RegistrationFormData>(
+    createEmptyParticipant(false),
+  );
+  const [suitePartner, setSuitePartner] = useState<RegistrationFormData>(
+    createEmptyParticipant(true),
+  );
+
+  const isSuite = formData.stay.accommodationType === 'Suíte';
 
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Update amount when suite toggle changes
+  const mainAge = formData.birthDate
+    ? calculateAgeFromBirthDate(formData.birthDate)
+    : null;
+  const partnerAge = suitePartner.birthDate
+    ? calculateAgeFromBirthDate(suitePartner.birthDate)
+    : null;
+
+  const needsResponsible = useMemo(() => {
+    const mainMinor =
+      mainAge !== null && mainAge >= ORIGENS.minAge && mainAge < 18;
+    const partnerMinor =
+      isSuite &&
+      partnerAge !== null &&
+      partnerAge >= ORIGENS.minAge &&
+      partnerAge < 18;
+    return mainMinor || partnerMinor;
+  }, [mainAge, partnerAge, isSuite]);
+
+  const stayReady =
+    formData.stay.accommodationType !== '' &&
+    formData.stay.stayDays !== '';
+
+  const priceOptions = useMemo(() => {
+    if (!stayReady) return null;
+    return {
+      accommodationType: formData.stay.accommodationType as AccommodationType,
+      stayDays: formData.stay.stayDays as StayDays,
+      isSuite,
+      shirtQuantity: totalShirtUnits(formData.shirt),
+    };
+  }, [
+    stayReady,
+    formData.stay.accommodationType,
+    formData.stay.stayDays,
+    isSuite,
+    formData.shirt,
+  ]);
+
+  const paymentBreakdown = useMemo(
+    () => (priceOptions ? getRegistrationPriceBreakdown(priceOptions) : null),
+    [priceOptions],
+  );
+
+  const paymentAmount = paymentBreakdown?.totalCents ?? 0;
+
   useEffect(() => {
     setFormData((prev) => ({
       ...prev,
-      payment: {
-        ...prev.payment,
-        amount: isSuite ? SUITE_PRICE : INDIVIDUAL_PRICE,
-      },
       isSuiteRegistration: isSuite,
+      payment: { ...prev.payment, amount: paymentAmount },
     }));
-  }, [isSuite]);
+  }, [paymentAmount, isSuite]);
 
-  const calculateAge = (birthDate: string): number | null => {
-    if (!birthDate) return null;
-    const date = new Date(birthDate);
-    const today = new Date();
-    let age = today.getFullYear() - date.getFullYear();
-    const m = today.getMonth() - date.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < date.getDate())) age--;
-    return age;
-  };
+  useEffect(() => {
+    if (!isSuite && currentStep === 'suitePartner') {
+      setCurrentStep('stay');
+    }
+  }, [isSuite, currentStep]);
 
   const formatCPF = (value: string) => {
     const digits = value.replace(/\D/g, '').slice(0, 11);
@@ -129,6 +185,75 @@ export function useRegistrationForm({ onSubmit }: UseRegistrationFormProps) {
     return digits;
   };
 
+  const applyParticipantChange = (
+    prev: RegistrationFormData,
+    name: string,
+    value: string | boolean,
+  ): RegistrationFormData => {
+    if (name === 'cpf') {
+      return { ...prev, cpf: formatCPF(String(value)) };
+    }
+    if (name === 'whatsapp') {
+      return { ...prev, whatsapp: formatPhone(String(value)) };
+    }
+    if (name === 'birthDate') {
+      const masked = maskBirthDateInput(String(value));
+      return {
+        ...prev,
+        birthDate: masked,
+        age: calculateAgeFromBirthDate(masked),
+      };
+    }
+    if (name.startsWith('shirt.')) {
+      const itemsMatch = name.match(/^shirt\.items\.(\d+)\.(model|size|quantity)$/);
+      if (itemsMatch) {
+        const index = Number(itemsMatch[1]);
+        const field = itemsMatch[2] as 'model' | 'size' | 'quantity';
+        const items = [...prev.shirt.items];
+        while (items.length <= index) {
+          items.push(createEmptyShirtLine());
+        }
+        const nextValue =
+          field === 'quantity'
+            ? (() => {
+                const raw = String(value).replace(/\D/g, '');
+                if (raw === '') return 0;
+                const n = parseInt(raw, 10);
+                return Math.min(
+                  PRICING.shirtMaxQuantity,
+                  Math.max(1, Number.isFinite(n) ? n : 1),
+                );
+              })()
+            : value;
+        items[index] = { ...items[index], [field]: nextValue };
+        return { ...prev, shirt: { ...prev.shirt, items } };
+      }
+      if (name === 'shirt.wantsShirt') {
+        const wants = value === true;
+        return {
+          ...prev,
+          shirt: wants
+            ? {
+                wantsShirt: true,
+                items:
+                  prev.shirt.items.length > 0
+                    ? prev.shirt.items
+                    : [createEmptyShirtLine()],
+              }
+            : createEmptyShirtSelection(),
+        };
+      }
+    }
+    if (name.startsWith('stay.')) {
+      const key = name.split('.')[1] as keyof StayInfo;
+      return {
+        ...prev,
+        stay: { ...prev.stay, [key]: value },
+      };
+    }
+    return { ...prev, [name]: value };
+  };
+
   const handleMainChange = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
@@ -137,54 +262,38 @@ export function useRegistrationForm({ onSubmit }: UseRegistrationFormProps) {
     const { name, value, type } = e.target;
     const checked =
       type === 'checkbox' ? (e.target as HTMLInputElement).checked : undefined;
-
-    if (name === 'responsibleInfo.document') {
-      setFormData((prev) => ({
-        ...prev,
-        responsibleInfo: {
-          ...prev.responsibleInfo,
-          document: formatCPF(value),
-        },
-      }));
-      return;
-    }
-
-    if (name === 'responsibleInfo.phone') {
-      setFormData((prev) => ({
-        ...prev,
-        responsibleInfo: { ...prev.responsibleInfo, phone: formatPhone(value) },
-      }));
-      return;
-    }
+    const val = type === 'checkbox' ? checked : value;
 
     if (name.startsWith('responsibleInfo.')) {
       const key = name.split('.')[1];
-      const capitalizeWords = (text: string) => {
-        if (!text) return '';
-        return text
-          .toLowerCase()
-          .replace(/(?:^|\s)\S/g, (char) => char.toUpperCase());
-      };
-      const formattedValue =
-        key === 'relation' ? capitalizeWords(value) : value;
-
+      if (key === 'document') {
+        setFormData((prev) => ({
+          ...prev,
+          responsibleInfo: {
+            ...prev.responsibleInfo,
+            document: formatCPF(value),
+          },
+        }));
+        return;
+      }
+      if (key === 'phone') {
+        setFormData((prev) => ({
+          ...prev,
+          responsibleInfo: {
+            ...prev.responsibleInfo,
+            phone: formatPhone(value),
+          },
+        }));
+        return;
+      }
       setFormData((prev) => ({
         ...prev,
-        responsibleInfo: { ...prev.responsibleInfo, [key]: formattedValue },
+        responsibleInfo: { ...prev.responsibleInfo, [key!]: value },
       }));
       return;
     }
 
-    const val = type === 'checkbox' ? checked : value;
-    setFormData((prev) => ({ ...prev, [name]: val }));
-
-    if (name === 'birthDate') {
-      setFormData((prev) => ({
-        ...prev,
-        birthDate: value,
-        age: calculateAge(value),
-      }));
-    }
+    setFormData((prev) => applyParticipantChange(prev, name, val as string));
   };
 
   const handleSuitePartnerChange = (
@@ -193,19 +302,10 @@ export function useRegistrationForm({ onSubmit }: UseRegistrationFormProps) {
     >,
   ) => {
     const { name, value, type } = e.target;
-    // @ts-ignore
-    const checked = type === 'checkbox' ? (e.target as HTMLInputElement).checked : undefined;
+    const checked =
+      type === 'checkbox' ? (e.target as HTMLInputElement).checked : undefined;
     const val = type === 'checkbox' ? checked : value;
-
-    setSuitePartner((prev) => ({ ...prev, [name]: val }));
-
-    if (name === 'birthDate') {
-      setSuitePartner((prev) => ({
-        ...prev,
-        birthDate: value,
-        age: calculateAge(value),
-      }));
-    }
+    setSuitePartner((prev) => applyParticipantChange(prev, name, val as string));
   };
 
   const handleBlur = (name: string) =>
@@ -216,107 +316,156 @@ export function useRegistrationForm({ onSubmit }: UseRegistrationFormProps) {
     return `REF-${randomPart}`;
   };
 
-  const validateStep = (step: FormStep): boolean => {
-    if (step === 'participant') {
-      const age = formData.birthDate ? calculateAge(formData.birthDate) : null;
-      return (
-        !!formData.name &&
-        !!formData.birthDate &&
-        !!formData.gender &&
-        !!formData.identityDocument &&
-        age !== null &&
-        age >= (isSuite ? 18 : 11)
-      );
-    }
+  const validateParticipant = (data: RegistrationFormData, prefix: string) => {
+    const minAgeForSuite = isSuite ? 18 : ORIGENS.minAge;
+    if (!isCompleteBirthDate(data.birthDate)) return false;
+    if (isBirthDateInFuture(data.birthDate)) return false;
 
-    if (step === 'suitePartner') {
-      const age = suitePartner.birthDate
-        ? calculateAge(suitePartner.birthDate)
-        : null;
-      return (
-        !!suitePartner.name &&
-        !!suitePartner.birthDate &&
-        !!suitePartner.gender &&
-        !!suitePartner.identityDocument &&
-        age !== null &&
-        age >= 18
-      );
-    }
+    const age = calculateAgeFromBirthDate(data.birthDate);
+    if (age === null || age < minAgeForSuite) return false;
+    const base =
+      !!data.name &&
+      !!data.gender &&
+      !!data.cpf.replace(/\D/g, '') &&
+      !!data.whatsapp.replace(/\D/g, '') &&
+      !!data.email &&
+      !!data.churchMembership &&
+      !!data.attendedPreviousIpvoCamps &&
+      !!data.hasHealthPlan;
 
-    if (step === 'responsible') {
-      return (
-        !!formData.responsibleInfo.name &&
-        !!formData.responsibleInfo.document &&
-        !!formData.responsibleInfo.phone &&
-        !!formData.responsibleInfo.email
-      );
+    if (!base) return false;
+    if (data.churchMembership === 'sim' && !data.churchName.trim()) {
+      return false;
     }
-
+    if (data.hasHealthPlan === 'sim' && !data.healthPlanName.trim()) {
+      return false;
+    }
     return true;
   };
 
+  const validateShirt = (shirt: ShirtSelection) => {
+    if (!shirt.wantsShirt) return true;
+    if (shirt.items.length === 0) return false;
+    for (const item of shirt.items) {
+      if (!item.model || !item.size) return false;
+      if (shirtLineUnits(item.quantity) < 1) return false;
+    }
+    const total = totalShirtUnits(shirt);
+    return total >= 1 && total <= PRICING.shirtMaxQuantity;
+  };
+
+  const addShirtLine = () => {
+    setFormData((prev) => {
+      if (totalShirtUnits(prev.shirt) >= PRICING.shirtMaxQuantity) return prev;
+      return {
+        ...prev,
+        shirt: {
+          wantsShirt: true,
+          items: [...prev.shirt.items, createEmptyShirtLine()],
+        },
+      };
+    });
+  };
+
+  const removeShirtLine = (index: number) => {
+    setFormData((prev) => {
+      if (prev.shirt.items.length <= 1) return prev;
+      return {
+        ...prev,
+        shirt: {
+          ...prev.shirt,
+          items: prev.shirt.items.filter((_, i) => i !== index),
+        },
+      };
+    });
+  };
+
+  const normalizeShirtQuantityOnBlur = (index: number) => {
+    setFormData((prev) => {
+      const items = [...prev.shirt.items];
+      const line = items[index];
+      if (!line) return prev;
+      if (line.quantity < 1) {
+        items[index] = { ...line, quantity: 1 };
+      }
+      return { ...prev, shirt: { ...prev.shirt, items } };
+    });
+  };
+
+  const validateStay = (stay: StayInfo) => {
+    if (!stay.accommodationType || !stay.stayDays) return false;
+    if (stay.bringingChildren && !stay.childrenDetails.trim()) return false;
+    return true;
+  };
+
+  const validateStep = (step: FormStep): boolean => {
+    if (step === 'orientations') return true;
+    if (step === 'participant') return validateParticipant(formData, 'main');
+    if (step === 'shirt') return validateShirt(formData.shirt);
+    if (step === 'stay') return validateStay(formData.stay);
+    if (step === 'suitePartner') {
+      return validateParticipant(suitePartner, 'suite');
+    }
+    if (step === 'responsible') {
+      const fieldsOk =
+        !!formData.responsibleInfo.name &&
+        !!formData.responsibleInfo.document &&
+        !!formData.responsibleInfo.phone &&
+        !!formData.responsibleInfo.email;
+      if (!fieldsOk) return false;
+      if (needsResponsible && !formData.parentalAuthorization) return false;
+      return true;
+    }
+    return true;
+  };
+
+  const stepOrder = useMemo((): FormStep[] => {
+    const steps: FormStep[] = [
+      'orientations',
+      'participant',
+      'shirt',
+      'stay',
+    ];
+    if (isSuite) steps.push('suitePartner');
+    if (needsResponsible) steps.push('responsible');
+    return steps;
+  }, [isSuite, needsResponsible]);
+
   const handleNext = () => {
     if (!validateStep(currentStep)) {
-      const fieldsToTouch =
-        currentStep === 'participant'
-          ? [
-              'main_name',
-              'main_birthDate',
-              'main_gender',
-              'main_identityDocument',
-            ]
-          : currentStep === 'suitePartner'
-            ? [
-                'suite_name',
-                'suite_birthDate',
-                'suite_gender',
-                'suite_identityDocument',
-              ]
-            : [
-                'responsibleInfo.name',
-                'responsibleInfo.document',
-                'responsibleInfo.phone',
-                'responsibleInfo.email',
-              ];
-
-      setTouched((prev) => {
-        const newTouched = { ...prev };
-        fieldsToTouch.forEach((f) => (newTouched[f] = true));
-        return newTouched;
-      });
+      setTouched((prev) => ({ ...prev, [`step_${currentStep}`]: true }));
       return;
     }
-
-    if (currentStep === 'participant') {
-      setCurrentStep(isSuite ? 'suitePartner' : 'responsible');
-    } else if (currentStep === 'suitePartner') {
-      setCurrentStep('responsible');
+    const idx = stepOrder.indexOf(currentStep);
+    if (idx >= 0 && idx < stepOrder.length - 1) {
+      setCurrentStep(stepOrder[idx + 1]);
     }
   };
 
   const handleBack = () => {
-    if (currentStep === 'suitePartner') {
-      setCurrentStep('participant');
-    } else if (currentStep === 'responsible') {
-      setCurrentStep(isSuite ? 'suitePartner' : 'participant');
-    }
+    const idx = stepOrder.indexOf(currentStep);
+    if (idx > 0) setCurrentStep(stepOrder[idx - 1]);
   };
+
+  const isLastStep = stepOrder[stepOrder.length - 1] === currentStep;
 
   const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!isLastStep) {
+      handleNext();
+      return;
+    }
 
-    if (!validateStep('responsible')) {
-      const fieldsToTouch = [
-        'responsibleInfo.name',
-        'responsibleInfo.document',
-        'responsibleInfo.phone',
-        'responsibleInfo.email',
-      ];
-      setTouched((prev) => {
-        const newTouched = { ...prev };
-        fieldsToTouch.forEach((f) => (newTouched[f] = true));
-        return newTouched;
-      });
+    for (const step of stepOrder) {
+      if (!validateStep(step)) {
+        setCurrentStep(step);
+        setTouched((prev) => ({ ...prev, [`step_${step}`]: true }));
+        return;
+      }
+    }
+
+    if (needsResponsible && !validateStep('responsible')) {
+      setTouched((prev) => ({ ...prev, step_responsible: true }));
       return;
     }
 
@@ -325,13 +474,26 @@ export function useRegistrationForm({ onSubmit }: UseRegistrationFormProps) {
 
     try {
       const formattedMainName = formatName(formData.name);
-      const formattedSuitePartnerName = isSuite ? formatName(suitePartner.name) : '';
-      const formattedResponsibleName = formatName(formData.responsibleInfo.name);
+      const formattedPartnerName = isSuite
+        ? formatName(suitePartner.name)
+        : '';
+
+      const payer = needsResponsible
+        ? {
+            name: formatName(formData.responsibleInfo.name),
+            cpf: formData.responsibleInfo.document.replace(/\D/g, ''),
+            phone: formData.responsibleInfo.phone,
+            email: formData.responsibleInfo.email,
+          }
+        : {
+            name: formattedMainName,
+            cpf: formData.cpf.replace(/\D/g, ''),
+            phone: formData.whatsapp,
+            email: formData.email,
+          };
 
       const referenceId = generateReferenceId();
       const partnerReferenceId = isSuite ? generateReferenceId() : '';
-
-      const paymentAmount = isSuite ? SUITE_PRICE : INDIVIDUAL_PRICE;
 
       const checkoutRes = await fetch('/api/payment/checkout', {
         method: 'POST',
@@ -339,10 +501,11 @@ export function useRegistrationForm({ onSubmit }: UseRegistrationFormProps) {
         body: JSON.stringify({
           referenceId,
           amount: paymentAmount,
-          email: formData.responsibleInfo.email,
-          name: formattedResponsibleName,
-          cpf: formData.responsibleInfo.document.replace(/\D/g, ''),
-          phone: formData.responsibleInfo.phone,
+          email: payer.email,
+          name: payer.name,
+          cpf: payer.cpf,
+          phone: payer.phone,
+          maxInstallments: PAYMENT_MAX_INSTALLMENTS,
           isSuiteRegistration: isSuite,
           suitePartnerReferenceId: partnerReferenceId,
         }),
@@ -355,22 +518,25 @@ export function useRegistrationForm({ onSubmit }: UseRegistrationFormProps) {
       const paymentData: PaymentInfo = {
         referenceId,
         paymentConfirmed: false,
-        paymentLink: paymentLink,
+        paymentLink,
         amount: paymentAmount,
-        name: formattedResponsibleName,
-        cpf: formData.responsibleInfo.document.replace(/\D/g, ''),
-        email: formData.responsibleInfo.email,
-        phone: formData.responsibleInfo.phone,
+        name: payer.name,
+        cpf: payer.cpf,
+        email: payer.email,
+        phone: payer.phone,
+        maxInstallments: PAYMENT_MAX_INSTALLMENTS,
       };
 
       const updatedFormData: RegistrationFormData = {
         ...formData,
         name: formattedMainName,
+        isSuiteRegistration: isSuite,
         payment: paymentData,
         suitePartner: isSuite
           ? {
               ...suitePartner,
-              name: formattedSuitePartnerName,
+              name: formattedPartnerName,
+              stay: { ...formData.stay },
               payment: {
                 ...suitePartner.payment,
                 referenceId: partnerReferenceId,
@@ -402,20 +568,27 @@ export function useRegistrationForm({ onSubmit }: UseRegistrationFormProps) {
 
   return {
     currentStep,
+    stepOrder,
+    isLastStep,
     isSuite,
-    setIsSuite,
+    needsResponsible,
     formData,
     suitePartner,
     touched,
     loading,
     error,
+    paymentAmount,
+    paymentBreakdown,
     handleMainChange,
     handleSuitePartnerChange,
     handleBlur,
     handleNext,
     handleBack,
     handleSubmit,
-    calculateAge,
+    calculateAge: calculateAgeFromBirthDate,
+    addShirtLine,
+    removeShirtLine,
+    normalizeShirtQuantityOnBlur,
   };
 }
 

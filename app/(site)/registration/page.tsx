@@ -85,17 +85,17 @@ function RegistrationPageContent() {
     <main className="relative min-h-screen bg-background overflow-hidden">
       <RegistrationTopBar className="relative z-10 border-b border-border bg-background/80 backdrop-blur-sm" />
       <motion.div
-        className="pointer-events-none absolute top-10 left-[-80px] w-[260px] h-[260px] bg-primary/15 blur-3xl rounded-full"
+        className="pointer-events-none absolute top-10 left-[-80px] z-0 w-[260px] h-[260px] bg-primary/15 blur-3xl rounded-full"
         animate={{ scale: [1, 1.2, 1] }}
         transition={{ duration: 8, repeat: Infinity }}
       />
       <motion.div
-        className="pointer-events-none absolute bottom-[-120px] right-[-60px] w-[320px] h-[320px] bg-accent/15 blur-3xl rounded-full"
+        className="pointer-events-none absolute bottom-[-120px] right-[-60px] z-0 w-[320px] h-[320px] bg-accent/15 blur-3xl rounded-full"
         animate={{ scale: [1.2, 1, 1.2] }}
         transition={{ duration: 10, repeat: Infinity }}
       />
 
-      <div className="relative max-w-2xl mx-auto px-4 py-10 md:py-16">
+      <div className="relative z-10 max-w-2xl mx-auto px-4 py-10 md:py-16">
         {!registrationOpen ? (
           <RegistrationClosed showHomeLink />
         ) : (
@@ -156,17 +156,9 @@ function RegistrationPageContent() {
             </div>
 
             <AnimatePresence mode="wait">
-              {step === "form" && (
-                <motion.div
-                  key="form"
-                  initial={{ opacity: 0, x: -16 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -16 }}
-                  transition={{ duration: 0.25, ease: "easeInOut" }}
-                >
-                  <RegistrationForm onSubmit={handleFormSubmit} />
-                </motion.div>
-              )}
+              <div hidden={step !== "form"} aria-hidden={step !== "form"}>
+                <RegistrationForm onSubmit={handleFormSubmit} />
+              </div>
 
               {step === "payment" && submittedData && (
                 <motion.div
