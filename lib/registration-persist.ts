@@ -2,6 +2,7 @@ import type { RegistrationFormData } from '@/shared/registration.interface';
 import { RegistrationModel } from '@/shared/models/registration.model';
 import { normalizeCpf, formatCpfDisplay } from '@/lib/cpf';
 import { normalizeShirtSelection } from '@/lib/shirt-model';
+import { getNextRegistrationNumber } from '@/lib/registration-sequence';
 
 export function prepareRegistrationForDb(
   data: RegistrationFormData,
@@ -47,9 +48,12 @@ async function saveRegistrationDocument(
     return existing;
   }
 
+  const registrationNumber = await getNextRegistrationNumber();
+  const fieldsWithId = { ...fields, registrationNumber };
+
   return RegistrationModel.findOneAndUpdate(
     upsertFilter,
-    { $set: fields },
+    { $set: fieldsWithId },
     { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true },
   );
 }

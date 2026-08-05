@@ -76,6 +76,15 @@ const RegistrationSchema = new mongoose.Schema(
     payment: PaymentDataSchema,
 
     isSuiteRegistration: { type: Boolean, default: false },
+    /** Inscrição # visível no admin e export (1, 2, 3…) */
+    registrationNumber: { type: Number, unique: true, sparse: true },
+    /** Quem paga a suíte (número da inscrição do pagador) — preenchido no cônjuge */
+    suitePayerRegistrationNumber: { type: Number, default: null },
+    /** Número da inscrição do cônjuge — preenchido no pagador */
+    suitePartnerRegistrationNumber: { type: Number, default: null },
+    suiteRole: { type: String, enum: ['payer', 'partner'], required: false },
+    /** Grupo da suíte (mesmo número para o casal) */
+    suiteGroupNumber: { type: Number, default: null },
     suitePartnerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Registration',
@@ -86,6 +95,9 @@ const RegistrationSchema = new mongoose.Schema(
 );
 
 RegistrationSchema.index({ cpf: 1 });
+RegistrationSchema.index({ registrationNumber: 1 });
+RegistrationSchema.index({ suitePayerRegistrationNumber: 1 });
+RegistrationSchema.index({ suiteGroupNumber: 1 });
 
 export const RegistrationModel =
   mongoose.models.Registration ||

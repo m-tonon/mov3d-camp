@@ -6,6 +6,7 @@ import { isRegistrationOpen } from '@/lib/registration-config';
 import { normalizeCpf } from '@/lib/cpf';
 import { upsertRegistrationByCpf } from '@/lib/registration-persist';
 import { validateShirtForSave } from '@/lib/shirt-lines';
+import { getNextSuiteGroupNumber } from '@/lib/registration-sequence';
 import {
   dissolveSuitePartnerForIndividualMain,
   reconcileStaleSuitePartnerRef,
@@ -46,9 +47,8 @@ export async function POST(req: NextRequest) {
         formData.age >= 16 &&
         formData.age < 18) ||
       (formData.isSuiteRegistration &&
-        formData.suitePartner?.age !== null &&
-        formData.suitePartner.age >= 16 &&
-        formData.suitePartner.age < 18);
+        (formData.suitePartner?.age ?? 0) >= 16 &&
+        (formData.suitePartner?.age ?? 0) < 18);
 
     if (
       needsResponsible &&
@@ -98,10 +98,15 @@ export async function POST(req: NextRequest) {
         ...formData.suitePartner,
         stay: formData.stay,
         payment: {
-          ...formData.suitePartner.payment,
-          referenceId:
-            formData.suitePartner.payment?.referenceId ||
-            `${formData.payment.referenceId}-P2`,
+          ...formData.payment,
+          referenceId: formData.payment.referenceId,
+          paymentLink: formData.payment.paymentLink,
+          paymentConfirmed: formData.payment.paymentConfirmed ?? false,
+          amount: 0,
+          name: formData.suitePartner.payment?.name ?? formData.suitePartner.name,
+          cpf: formData.suitePartner.cpf,
+          email: formData.suitePartner.email,
+          phone: formData.suitePartner.whatsapp,
         },
         isSuiteRegistration: true,
       };
@@ -112,15 +117,38 @@ export async function POST(req: NextRequest) {
       }
       const partnerRegistration = partnerResult.doc;
 
+      const mainNumber = mainRegistration.registrationNumber;
+      const partnerNumber = partnerRegistration.registrationNumber;
+
+      const suiteGroupNumber =
+        mainRegistration.suiteGroupNumber ??
+        partnerRegistration.suiteGroupNumber ??
+        (await getNextSuiteGroupNumber());
+
       await RegistrationModel.findByIdAndUpdate(mainRegistration._id, {
         suitePartnerId: partnerRegistration._id,
         suitePartnerName: partnerRegistration.name,
+        suitePartnerRegistrationNumber: partnerNumber ?? null,
+        suiteRole: 'payer',
+        suiteGroupNumber,
         isSuiteRegistration: true,
       });
 
       await RegistrationModel.findByIdAndUpdate(partnerRegistration._id, {
-        suitePartnerId: mainRegistration._id,
-        isSuiteRegistration: true,
+        $set: {
+          suitePartnerId: mainRegistration._id,
+          suitePayerRegistrationNumber: mainNumber ?? null,
+          suiteRole: 'partner',
+          suiteGroupNumber,
+          isSuiteRegistration: true,
+          'payment.referenceId':
+            mainRegistration.payment?.referenceId ?? formData.payment.referenceId,
+          'payment.paymentLink':
+            mainRegistration.payment?.paymentLink ?? formData.payment.paymentLink,
+          'payment.amount': 0,
+          'payment.paymentConfirmed':
+            mainRegistration.payment?.paymentConfirmed ?? false,
+        },
       });
 
       await removeReplacedSuitePartner(
