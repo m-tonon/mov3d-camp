@@ -25,7 +25,6 @@ async function clearSuitePartnerFields(
   });
 }
 
-/** Drop suitePartnerId / name when the referenced document no longer exists. */
 export async function reconcileStaleSuitePartnerRef(
   registrationId: Types.ObjectId,
 ): Promise<void> {
@@ -42,9 +41,6 @@ export async function reconcileStaleSuitePartnerRef(
   }
 }
 
-/**
- * Main registrant saved as individual: remove unpaid linked partner and clear suite fields.
- */
 export async function dissolveSuitePartnerForIndividualMain(
   mainId: Types.ObjectId,
 ): Promise<void> {
@@ -72,7 +68,6 @@ export async function dissolveSuitePartnerForIndividualMain(
   await clearSuitePartnerFields(mainId);
 }
 
-/** Remove a former suite partner when the main registrant links someone else. */
 export async function removeReplacedSuitePartner(
   previousPartnerId: Types.ObjectId | null | undefined,
   newPartnerId: Types.ObjectId,
@@ -80,4 +75,29 @@ export async function removeReplacedSuitePartner(
   if (!previousPartnerId) return;
   if (previousPartnerId.toString() === newPartnerId.toString()) return;
   await deleteUnpaidRegistrationIfExists(previousPartnerId);
+}
+
+export async function adminDeleteRegistration(
+  id: Types.ObjectId,
+): Promise<'deleted' | 'not_found' | 'paid'> {
+  const reg = await RegistrationModel.findById(id);
+  if (!reg) return 'not_found';
+  if (reg.payment?.paymentConfirmed) return 'paid';
+
+  const payerOfDeleted = await RegistrationModel.findOne({ suitePartnerId: id });
+  if (payerOfDeleted) {
+    await clearSuitePartnerFields(payerOfDeleted._id);
+  }
+
+  if (reg.suitePartnerId && reg.suiteRole !== 'partner') {
+    const partner = await RegistrationModel.findById(reg.suitePartnerId);
+    if (partner && !partner.payment?.paymentConfirmed) {
+      await RegistrationModel.findByIdAndDelete(reg.suitePartnerId);
+    } else if (partner) {
+      await clearSuitePartnerFields(reg.suitePartnerId);
+    }
+  }
+
+  await RegistrationModel.findByIdAndDelete(id);
+  return 'deleted';
 }

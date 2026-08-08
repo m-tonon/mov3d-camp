@@ -14,6 +14,8 @@ import {
   Copy,
   ShieldCheck,
   RotateCcw,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
 import { AdminThemeToggle } from '@/components/admin/admin-theme-toggle';
@@ -101,9 +103,19 @@ export default function AdminPage() {
   >('all');
 
   const [confirmingRegId, setConfirmingRegId] = useState<string | null>(null);
+  const [deletingRegId, setDeletingRegId] = useState<string | null>(null);
   const [confirmingTargetStatus, setConfirmingTargetStatus] = useState<boolean>(true);
   const [adminPassword, setAdminPassword] = useState('');
   const [confirmingLoading, setConfirmingLoading] = useState(false);
+  const [deletingLoading, setDeletingLoading] = useState(false);
+  const [deletePaidBlockedOpen, setDeletePaidBlockedOpen] = useState(false);
+
+  const closeAdminModals = () => {
+    setConfirmingRegId(null);
+    setDeletingRegId(null);
+    setDeletePaidBlockedOpen(false);
+    setAdminPassword('');
+  };
 
   const confirmRegistration = async () => {
     if (!confirmingRegId || !adminPassword) return;
@@ -123,13 +135,39 @@ export default function AdminPage() {
         throw new Error(data.error || 'Erro ao atualizar inscrição');
       }
       toast.success(confirmingTargetStatus ? 'Inscrição confirmada com sucesso!' : 'Inscrição alterada para pendente!');
-      setConfirmingRegId(null);
-      setAdminPassword('');
+      closeAdminModals();
       fetchRegistrations();
     } catch (err: any) {
       toast.error(err.message || 'Erro ao processar');
     } finally {
       setConfirmingLoading(false);
+    }
+  };
+
+  const deleteRegistration = async () => {
+    if (!deletingRegId || !adminPassword) return;
+    setDeletingLoading(true);
+    try {
+      const res = await fetch('/api/registration/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: deletingRegId,
+          password: adminPassword,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Erro ao excluir inscrição');
+      }
+      toast.success('Inscrição excluída com sucesso.');
+      closeAdminModals();
+      fetchRegistrations();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Erro ao processar';
+      toast.error(message);
+    } finally {
+      setDeletingLoading(false);
     }
   };
 
@@ -460,7 +498,7 @@ export default function AdminPage() {
                       Data <SortIcon field="createdAt" />
                     </span>
                   </th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider w-24">
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider w-32">
                     Ações
                   </th>
                 </tr>
@@ -613,6 +651,30 @@ export default function AdminPage() {
                             <RotateCcw className="w-3.5 h-3.5" />
                           </button>
                         )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (reg.payment?.paymentConfirmed) {
+                              setDeletePaidBlockedOpen(true);
+                              return;
+                            }
+                            setConfirmingRegId(null);
+                            setDeletingRegId(reg._id);
+                            setAdminPassword('');
+                          }}
+                          title={
+                            reg.payment?.paymentConfirmed
+                              ? 'Não é possível excluir inscrição paga'
+                              : 'Excluir inscrição'
+                          }
+                          className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                            reg.payment?.paymentConfirmed
+                              ? 'border-border bg-muted/30 text-muted-foreground opacity-60'
+                              : 'border-destructive/30 bg-destructive/5 hover:bg-destructive/10 text-destructive'
+                          }`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </td>
                   </motion.tr>
@@ -697,10 +759,7 @@ export default function AdminPage() {
 
               <div className="flex items-center gap-3 pt-2">
                 <button
-                  onClick={() => {
-                    setConfirmingRegId(null);
-                    setAdminPassword('');
-                  }}
+                  onClick={closeAdminModals}
                   className="flex-1 px-4 py-2 text-xs font-medium border border-border rounded-lg hover:bg-muted/50 transition-colors text-muted-foreground hover:text-foreground cursor-pointer"
                 >
                   Cancelar
@@ -722,6 +781,106 @@ export default function AdminPage() {
                 </button>
               </div>
             </div>
+          </motion.div>
+        </div>
+      )}
+
+      {deletingRegId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="w-full max-w-sm bg-card/85 backdrop-blur-xl border border-border rounded-2xl shadow-2xl p-6 relative overflow-hidden"
+          >
+            <div className="flex flex-col items-center text-center gap-3">
+              <div className="p-3 rounded-full bg-destructive/10 text-destructive">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-foreground">
+                  Excluir inscrição
+                </h3>
+                <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+                  Esta ação remove a inscrição do banco de dados. Se for suíte,
+                  o cônjuge pendente também pode ser removido ou desvinculado.
+                  Digite a senha de autorização para prosseguir.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Senha de Autorização
+                </label>
+                <input
+                  type="password"
+                  placeholder="Digite a senha..."
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary placeholder:text-muted-foreground/45"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') deleteRegistration();
+                  }}
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  onClick={closeAdminModals}
+                  className="flex-1 px-4 py-2 text-xs font-medium border border-border rounded-lg hover:bg-muted/50 transition-colors text-muted-foreground hover:text-foreground cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={deleteRegistration}
+                  disabled={deletingLoading || !adminPassword}
+                  className="flex-1 px-4 py-2 text-xs font-semibold rounded-lg bg-destructive text-destructive-foreground hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  {deletingLoading ? (
+                    <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    'Excluir'
+                  )}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {deletePaidBlockedOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-sm bg-card/85 backdrop-blur-xl border border-border rounded-2xl shadow-2xl p-6"
+          >
+            <div className="flex flex-col items-center text-center gap-3">
+              <div className="p-3 rounded-full bg-amber-500/10 text-amber-500">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-foreground">
+                  Exclusão não permitida
+                </h3>
+                <p className="text-xs text-muted-foreground mt-2 max-w-xs leading-relaxed">
+                  Esta inscrição tem pagamento confirmado e não pode ser
+                  excluída. Para remover do sistema, marque o pagamento como
+                  pendente e tente novamente — ou entre em contato com a
+                  organização se precisar de outro procedimento.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setDeletePaidBlockedOpen(false)}
+              className="mt-6 w-full px-4 py-2.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity cursor-pointer"
+            >
+              Entendi
+            </button>
           </motion.div>
         </div>
       )}

@@ -1,39 +1,28 @@
-import mongoose from 'mongoose';
+import { RegistrationModel } from '@/shared/models/registration.model';
 
-const CounterSchema = new mongoose.Schema({
-  key: { type: String, required: true, unique: true },
-  seq: { type: Number, default: 0 },
-});
+async function nextNumberAfterMax(
+  filter: Record<string, unknown>,
+  field: 'registrationNumber' | 'suiteGroupNumber',
+): Promise<number> {
+  const maxDoc = await RegistrationModel.findOne(filter)
+    .sort({ [field]: -1 })
+    .select(field)
+    .lean();
 
-const CounterModel =
-  mongoose.models.RegistrationNumberCounter ||
-  mongoose.model(
-    'RegistrationNumberCounter',
-    CounterSchema,
-    'registration_seq_v2',
-  );
-
-async function nextSequence(key: string, label: string): Promise<number> {
-  const counter = await CounterModel.findOneAndUpdate(
-    { key },
-    {
-      $inc: { seq: 1 },
-      $setOnInsert: { key },
-    },
-    { new: true, upsert: true, setDefaultsOnInsert: true },
-  );
-  if (!counter) {
-    throw new Error(`Failed to allocate ${label}`);
-  }
-  return counter.seq;
+  const max = maxDoc?.[field];
+  return typeof max === 'number' && max > 0 ? max + 1 : 1;
 }
 
-/** Monotonic human-friendly registration ID (1, 2, 3…). */
 export async function getNextRegistrationNumber(): Promise<number> {
-  return nextSequence('registration', 'registration number');
+  return nextNumberAfterMax(
+    { registrationNumber: { $exists: true, $ne: null } },
+    'registrationNumber',
+  );
 }
 
-/** Suíte casal #1, #2… (compartilhado entre pagador e cônjuge). */
 export async function getNextSuiteGroupNumber(): Promise<number> {
-  return nextSequence('suite', 'suite group number');
+  return nextNumberAfterMax(
+    { suiteGroupNumber: { $exists: true, $ne: null } },
+    'suiteGroupNumber',
+  );
 }
