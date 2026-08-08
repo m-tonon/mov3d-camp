@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     const mainRegistration = await RegistrationModel.findByIdAndUpdate(
       id,
       { $set: { 'payment.paymentConfirmed': targetStatus } },
-      { new: true },
+      { returnDocument: 'after' },
     );
 
     if (!mainRegistration) {
