@@ -16,7 +16,7 @@ import {
 } from '@/hooks/use-registration-form';
 import { RegistrationOrientations } from '@/components/registration/registration-orientations';
 import { ORIGENS, PRICING, STAY_DAYS_HELP, SHIRT_MODELS } from '@/lib/event-config';
-import { formatBrlFromCents } from '@/lib/pricing';
+import { formatBrlFromCents, shirtAmountCents } from '@/lib/pricing';
 import { totalShirtUnits } from '@/lib/shirt-lines';
 import {
   calculateAgeFromBirthDate,
@@ -376,8 +376,10 @@ export function RegistrationForm({ onSubmit }: Props) {
     <section className="space-y-4">
       <p className="text-sm text-muted-foreground">
         Camiseta especial do acampamento — {formatBrlFromCents(PRICING.shirt)}{' '}
-        cada. Tamanhos P ao GG. Inclua aqui todas as camisetas desta inscrição
-        (suas e, na suíte, do cônjuge se quiser).
+        cada. A cada 2 camisetas, {formatBrlFromCents(PRICING.shirtPairDiscount)}{' '}
+        de desconto (2 por {formatBrlFromCents(shirtAmountCents(2))}),
+        independente do modelo. Tamanhos P ao GG. Inclua aqui todas as camisetas
+        desta inscrição (suas e, na suíte, do cônjuge se quiser).
       </p>
       <label className="flex items-center gap-3 p-4 rounded-xl border border-border cursor-pointer">
         <input

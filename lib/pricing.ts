@@ -30,6 +30,12 @@ export type RegistrationPriceBreakdown = {
   totalCents: number;
 };
 
+export function shirtAmountCents(quantity: number): number {
+  const shirtQuantity = Math.max(0, quantity);
+  const pairs = Math.floor(shirtQuantity / 2);
+  return shirtQuantity * PRICING.shirt - pairs * PRICING.shirtPairDiscount;
+}
+
 export function getRegistrationPriceBreakdown(
   options: RegistrationPriceOptions,
 ): RegistrationPriceBreakdown {
@@ -39,7 +45,7 @@ export function getRegistrationPriceBreakdown(
   );
   const peopleCount = options.isSuite ? 2 : 1;
   const shirtQuantity = Math.max(0, options.shirtQuantity);
-  const shirtCents = shirtQuantity * PRICING.shirt;
+  const shirtCents = shirtAmountCents(shirtQuantity);
   const lodgingTotalCents = lodgingPerPersonCents * peopleCount;
   const totalCents = lodgingTotalCents + shirtCents;
 

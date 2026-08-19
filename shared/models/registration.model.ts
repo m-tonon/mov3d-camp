@@ -95,7 +95,6 @@ const RegistrationSchema = new mongoose.Schema(
 );
 
 RegistrationSchema.index({ cpf: 1 });
-RegistrationSchema.index({ registrationNumber: 1 });
 RegistrationSchema.index({ suitePayerRegistrationNumber: 1 });
 RegistrationSchema.index({ suiteGroupNumber: 1 });
 
