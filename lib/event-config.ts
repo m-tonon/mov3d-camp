@@ -43,6 +43,8 @@ export const PRICING = {
   suitePerPerson: 49_000,
   dailyPerDay: 15_000,
   shirt: 9_000,
+  /** Desconto a cada 2 camisetas, qualquer modelo */
+  shirtPairDiscount: 3_000,
   shirtMaxQuantity: 10,
   maxInstallments: 6,
 } as const;

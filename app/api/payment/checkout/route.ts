@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import axios from 'axios';
 import { isRegistrationOpen, areInstallmentsAvailable } from '@/lib/registration-config';
 import { ORIGENS, PRICING } from '@/lib/event-config';
 
 const PAGBANK_TOKEN = process.env.PAGBANK_TOKEN!;
 const PAGBANK_API_URL = process.env.PAGBANK_API_URL!;
 const DOMAIN_URL = process.env.DOMAIN_URL!;
+
+type PagBankCheckoutResponse = {
+  id?: string;
+  reference_id?: string;
+  links?: { rel: string; href: string }[];
+};
 
 export async function POST(req: NextRequest) {
   try {
@@ -80,25 +85,36 @@ export async function POST(req: NextRequest) {
       payment_methods_configs: paymentMethodsConfigs,
       redirect_url: `https://${DOMAIN_URL}/registration?paymentCompleted=true`,
       return_url: `https://${DOMAIN_URL}/registration`,
+      notification_urls: [`https://${DOMAIN_URL}/api/payment/webhook`],
     };
 
     console.log('Request options to PagBank:', payload);
 
-    const pagbank = axios.create({
-      baseURL: PAGBANK_API_URL,
+    const checkoutUrl = new URL('/checkouts', PAGBANK_API_URL);
+
+    const response = await fetch(checkoutUrl, {
+      method: 'POST',
       headers: {
         Authorization: `Bearer ${PAGBANK_TOKEN}`,
         'Content-Type': 'application/json',
       },
+      body: JSON.stringify(payload),
     });
 
-    const response = await pagbank.post('/checkouts', payload);
+    const pagbankData = (await response.json().catch(() => undefined)) as
+      | PagBankCheckoutResponse
+      | undefined;
 
-    const pagbankData = response.data;
+    if (!response.ok || !pagbankData) {
+      console.error(
+        'Error in /api/payments/checkout:',
+        pagbankData ?? response.statusText,
+      );
+      return NextResponse.json({ error: 'Payment error' }, { status: 500 });
+    }
 
     const paymentLink =
-      pagbankData.links?.find((l: { rel: string }) => l.rel === 'PAY')?.href ??
-      null;
+      pagbankData.links?.find((l) => l.rel === 'PAY')?.href ?? null;
 
     return NextResponse.json({
       paymentLink,
@@ -108,16 +124,7 @@ export async function POST(req: NextRequest) {
   } catch (error: unknown) {
     const message =
       error instanceof Error ? error.message : 'Payment error';
-    const axiosData =
-      error &&
-      typeof error === 'object' &&
-      'response' in error &&
-      error.response &&
-      typeof error.response === 'object' &&
-      'data' in error.response
-        ? error.response.data
-        : undefined;
-    console.error('Error in /api/payments/checkout:', axiosData || message);
+    console.error('Error in /api/payments/checkout:', message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
