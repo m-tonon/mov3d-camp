@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isRegistrationOpen, areInstallmentsAvailable } from '@/lib/registration-config';
 import { ORIGENS, PRICING } from '@/lib/event-config';
+import { connectToDatabase } from '@/lib/mongoose-connection';
+import { CouponModel } from '@/shared/models/coupon.model';
 
 const PAGBANK_TOKEN = process.env.PAGBANK_TOKEN!;
 const PAGBANK_API_URL = process.env.PAGBANK_API_URL!;
@@ -31,6 +33,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Validate coupon if provided
+    let discountPercentage = 0;
+    if (payment.couponCode) {
+      await connectToDatabase();
+      const normalizedCode = payment.couponCode.toUpperCase().trim();
+      const coupon = await CouponModel.findOne({ code: normalizedCode });
+      
+      if (coupon && (coupon.usageLimit === null || coupon.usageCount < coupon.usageLimit)) {
+        discountPercentage = coupon.discountPercentage;
+      } else if (coupon) {
+        return NextResponse.json({ error: 'Coupon usage limit reached' }, { status: 400 });
+      } else {
+        return NextResponse.json({ error: 'Invalid coupon code' }, { status: 400 });
+      }
+    }
+
     const rawPhone = payment.phone?.replace(/\D/g, '');
     const area = rawPhone?.slice(0, 2) ?? null;
     const number = rawPhone?.slice(2) ?? null;
@@ -39,7 +57,10 @@ export async function POST(req: NextRequest) {
       .toISOString()
       .replace('Z', '-03:00');
 
-    const amount = payment.amount ?? 28000;
+    const baseAmount = payment.amount ?? 28000;
+    const amount = discountPercentage > 0
+      ? Math.round(baseAmount * (1 - discountPercentage / 100))
+      : baseAmount;
     const maxInstallments = String(
       payment.maxInstallments ?? PRICING.maxInstallments,
     );
@@ -120,6 +141,9 @@ export async function POST(req: NextRequest) {
       paymentLink,
       referenceId: pagbankData.reference_id,
       checkoutId: pagbankData.id,
+      discountPercentage,
+      originalAmount: baseAmount,
+      finalAmount: amount,
     });
   } catch (error: unknown) {
     const message =

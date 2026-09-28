@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { RegistrationFormData } from '@/shared/registration.interface';
 import { createPaymentLink } from '@/services/payment';
 import { areInstallmentsAvailable } from '@/lib/registration-config';
+import { Tag, Check, Loader2, X } from 'lucide-react';
 
 interface Props {
   data: RegistrationFormData;
@@ -12,23 +13,82 @@ interface Props {
 
 import { ORIGENS, PRICING } from '@/lib/event-config';
 
+interface CouponValidationResponse {
+  valid: boolean;
+  discountPercentage?: number;
+  usageLimit?: number | null;
+  usageCount?: number;
+  error?: string;
+}
+
 export function PaymentSection({ data, onBack }: Props) {
   const installmentsAvailable = areInstallmentsAvailable();
   const [paymentLink, setPaymentLink] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [couponCode, setCouponCode] = useState('');
+  const [validatingCoupon, setValidatingCoupon] = useState(false);
+  const [couponValid, setCouponValid] = useState(false);
+  const [couponDiscount, setCouponDiscount] = useState(0);
+  const [couponError, setCouponError] = useState('');
 
-  const amount = data.payment?.amount ?? PRICING.alojamentoFull;
-  const formatted = (amount / 100).toLocaleString('pt-BR', {
+  const baseAmount = data.payment?.amount ?? PRICING.alojamentoFull;
+  const discountAmount = couponValid && couponDiscount > 0
+    ? Math.round(baseAmount * (couponDiscount / 100))
+    : 0;
+  const finalAmount = baseAmount - discountAmount;
+  const formattedBase = (baseAmount / 100).toLocaleString('pt-BR', {
     style: 'currency',
     currency: 'BRL',
   });
+  const formattedFinal = (finalAmount / 100).toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  });
+
+  const validateCoupon = async () => {
+    const code = couponCode.trim().toUpperCase();
+    if (!code) return;
+
+    setValidatingCoupon(true);
+    setCouponError('');
+    try {
+      const res = await fetch(`/api/coupons/validate?code=${encodeURIComponent(code)}`);
+      const data: CouponValidationResponse = await res.json();
+
+      if (data.valid) {
+        setCouponValid(true);
+        setCouponDiscount(data.discountPercentage || 0);
+        setCouponError('');
+      } else {
+        setCouponValid(false);
+        setCouponDiscount(0);
+        setCouponError(data.error || 'Cupom inválido');
+      }
+    } catch {
+      setCouponValid(false);
+      setCouponDiscount(0);
+      setCouponError('Erro ao validar cupom');
+    } finally {
+      setValidatingCoupon(false);
+    }
+  };
+
+  const handleCouponChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.toUpperCase();
+    setCouponCode(value);
+    if (couponValid) {
+      setCouponValid(false);
+      setCouponDiscount(0);
+      setCouponError('');
+    }
+  };
 
   const handleGenerateLink = async () => {
     setLoading(true);
     setError('');
     try {
-      const response = await createPaymentLink(data.payment);
+      const response = await createPaymentLink(data.payment, couponValid ? couponCode : undefined);
       setPaymentLink(response.paymentLink);
     } catch {
       setError(
@@ -55,9 +115,24 @@ export function PaymentSection({ data, onBack }: Props) {
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest">
             Valor do investimento
           </p>
-          <p className="text-4xl font-black tracking-tight text-foreground">
-            {formatted}
-          </p>
+          {couponValid && couponDiscount > 0 ? (
+            <>
+              <p className="text-2xl font-medium text-muted-foreground line-through">
+                {formattedBase}
+              </p>
+              <p className="text-4xl font-black tracking-tight text-green-500">
+                {formattedFinal}
+              </p>
+              <p className="text-sm font-semibold text-green-500 flex items-center justify-center gap-1">
+                <Tag className="w-4 h-4" />
+                Desconto de {couponDiscount}% aplicado
+              </p>
+            </>
+          ) : (
+            <p className="text-4xl font-black tracking-tight text-foreground">
+              {formattedBase}
+            </p>
+          )}
         </div>
 
         <div className="border-t border-border px-6 py-4 space-y-2">
@@ -92,6 +167,83 @@ export function PaymentSection({ data, onBack }: Props) {
             )}
           </div>
         </div>
+      </div>
+
+      {/* Coupon input */}
+      <div className="bg-card border border-border rounded-2xl p-5 space-y-3">
+        <div className="flex items-center gap-2">
+          <Tag className="w-4 h-4 text-primary" />
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
+            Cupom de Desconto
+          </p>
+        </div>
+
+        <div className="flex gap-2">
+          <input
+            type="text"
+            placeholder="Digite o código do cupom"
+            value={couponCode}
+            onChange={handleCouponChange}
+            onBlur={validateCoupon}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') validateCoupon();
+            }}
+            className={`flex-1 bg-background border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary placeholder:text-muted-foreground/45 text-uppercase ${
+              couponValid
+                ? 'border-green-500/50 bg-green-500/5'
+                : couponError
+                ? 'border-destructive/50 bg-destructive/5'
+                : 'border-border'
+            }`}
+            disabled={couponValid || validatingCoupon}
+            maxLength={20}
+          />
+          {couponValid ? (
+            <button
+              type="button"
+              onClick={() => {
+                setCouponCode('');
+                setCouponValid(false);
+                setCouponDiscount(0);
+              }}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border border-border bg-background hover:bg-muted/50 transition-colors text-muted-foreground hover:text-foreground"
+            >
+              <X className="w-3.5 h-3.5" />
+              Remover
+            </button>
+          ) : validatingCoupon ? (
+            <Loader2 className="w-8 h-8 animate-spin text-primary flex-shrink-0" />
+          ) : (
+            <button
+              type="button"
+              onClick={validateCoupon}
+              disabled={!couponCode.trim() || validatingCoupon}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Check className="w-3.5 h-3.5" />
+              Aplicar
+            </button>
+          )}
+        </div>
+
+        {couponError && (
+          <p className="text-xs text-destructive flex items-center gap-1">
+            <AlertTriangle className="w-3 h-3" />
+            {couponError}
+          </p>
+        )}
+
+        {couponValid && couponDiscount > 0 && (
+          <div className="flex items-center justify-between text-xs text-green-500 bg-green-500/10 rounded-lg px-3 py-2">
+            <span>Desconto de {couponDiscount}% aplicado</span>
+            <span className="font-mono">
+              -{(discountAmount / 100).toLocaleString('pt-BR', {
+                style: 'currency',
+                currency: 'BRL',
+              })}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Registration summary */}
@@ -240,3 +392,5 @@ function SummaryRow({
     </div>
   );
 }
+
+import { AlertTriangle } from 'lucide-react';
