@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
@@ -16,6 +17,7 @@ import {
   RotateCcw,
   Trash2,
   AlertTriangle,
+  Tag,
 } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
 import { AdminThemeToggle } from '@/components/admin/admin-theme-toggle';
@@ -303,6 +305,13 @@ export default function AdminPage() {
               className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`}
             />
           </button>
+          <Link
+            href="/admin/coupons"
+            className="flex items-center justify-center size-9 rounded-lg bg-violet-600 text-white hover:opacity-90 transition-opacity"
+            aria-label="Cupons"
+          >
+            <Tag className="w-4 h-4" />
+          </Link>
           <button
             type="button"
             onClick={() => handleExport(false)}
@@ -339,6 +348,13 @@ export default function AdminPage() {
             />
             <span className="hidden sm:inline">Atualizar</span>
           </button>
+          <Link
+            href="/admin/coupons"
+            className="flex items-center gap-2 px-3 py-2 text-xs font-semibold rounded-lg bg-violet-600 text-white hover:opacity-90 transition-opacity"
+          >
+            <Tag className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Cupons</span>
+          </Link>
           <button
             onClick={() => handleExport(false)}
             disabled={exporting}
